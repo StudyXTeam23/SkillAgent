@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>StudyX Skill Agent Demo</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "primary": "#137fec",
+              "background-light": "#f6f7f8",
+              "background-dark": "#101922",
+              "surface-light": "#ffffff",
+              "surface-dark": "#1a2632",
+              "text-light-primary": "#0d141b",
+              "text-dark-primary": "#f6f7f8",
+              "text-light-secondary": "#4c739a",
+              "text-dark-secondary": "#a0b3c7",
+              "border-light": "#e7edf3",
+              "border-dark": "#2a3b4d"
+            },
+            fontFamily: {
+              "display": ["Space Grotesk", "sans-serif"]
+            },
+            borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-text-light-primary dark:text-text-dark-primary">
+<div class="flex h-screen w-full">
+<!-- SideNavBar -->
+<aside class="flex h-full w-64 flex-col justify-between border-r border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark p-4">
+<div class="flex flex-col gap-6">
+<div class="flex items-center gap-3 px-2">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-lg size-10" data-alt="StudyX logo, a stylized letter S with a graduation cap" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuDSpXpUeQFNhzxQIoAIi7RVey3s_Kg0LtNFS9WswZKutC6WUs9vIxo8_6QyNO27m6hlLXEbVG3-PxYyOcktW-sXx6ageG7DxuTTM7j4weDKp7akm6V5MrsGoCm6uuoPFbMEw-bJZwmDc1a7EwsyedARNMzmuie5bknIxwPkHUTQ2BVsAy8itZojKioaFIV05B5hD1Jh3fx9ee34XsTmHjkvSLlBaBzXmj6Ob2zyEe3w1_Okns5xwcEMb9BdwpBYEN4Iz4KcJlfQAI8D");'></div>
+<div class="flex flex-col">
+<h1 class="text-base font-bold">StudyX</h1>
+<p class="text-sm text-text-light-secondary dark:text-text-dark-secondary">Skill Agent Demo</p>
+</div>
+</div>
+<div class="flex flex-col gap-1">
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-primary/10 transition-colors" href="#">
+<span class="material-symbols-outlined text-xl">dashboard</span>
+<p class="text-sm font-medium">Dashboard</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/10 text-primary" href="#">
+<span class="material-symbols-outlined text-xl">calculate</span>
+<p class="text-sm font-bold">Calculus Practice</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-primary/10 transition-colors" href="#">
+<span class="material-symbols-outlined text-xl">lightbulb</span>
+<p class="text-sm font-medium">Concept Explanation</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-primary/10 transition-colors" href="#">
+<span class="material-symbols-outlined text-xl">functions</span>
+<p class="text-sm font-medium">Integration by Parts</p>
+</a>
+</div>
+</div>
+<div class="flex flex-col gap-4">
+<button class="flex w-full cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 bg-primary text-white text-sm font-bold tracking-wide hover:bg-primary/90 transition-colors">
+<span class="truncate">New Chat</span>
+</button>
+<div class="flex flex-col gap-1">
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-primary/10 transition-colors" href="#">
+<span class="material-symbols-outlined text-xl">settings</span>
+<p class="text-sm font-medium">Settings</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-primary/10 transition-colors" href="#">
+<span class="material-symbols-outlined text-xl">help</span>
+<p class="text-sm font-medium">Help</p>
+</a>
+</div>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="flex flex-1 flex-col">
+<!-- TopNavBar -->
+<header class="flex h-16 items-center justify-between whitespace-nowrap border-b border-solid border-border-light dark:border-border-dark px-6 bg-surface-light dark:bg-surface-dark">
+<div class="flex items-center gap-4">
+<h2 class="text-lg font-bold tracking-tight">Calculus Practice Session</h2>
+</div>
+<div class="flex flex-1 items-center justify-end gap-4">
+<button class="flex cursor-pointer items-center justify-center overflow-hidden rounded-lg size-10 bg-primary/10 text-text-light-primary dark:text-text-dark-primary hover:bg-primary/20 transition-colors">
+<span class="material-symbols-outlined text-xl">notifications</span>
+</button>
+<button class="flex cursor-pointer items-center justify-center overflow-hidden rounded-lg size-10 bg-primary/10 text-text-light-primary dark:text-text-dark-primary hover:bg-primary/20 transition-colors">
+<span class="material-symbols-outlined text-xl">bolt</span>
+</button>
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10" data-alt="User avatar with a gradient background" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuC2JV0TerXdmHAVpbSKv_E1GuCwolwncFI-4GV6gTe4KD7jb6L14FEWUoI9GNNTmFjCICvExlwaH0u-Xlc__WwIhFeFn3tGycB_um-i2WDCBZ8qh8z4mzXJSai0ODWV21ZaxGiyMm-Xot9-QBjSTEmRiy_zgJShKMe01fF7msbIDwkAsrstdzzcpXlnafKBGO39znKCb-jbgC-p4Eakjg_qCdJ4FqHjX2gefcJUbHapvopm943I8lcboavCnjZrtm0h5-VQbnuXjwps");'></div>
+</div>
+</header>
+<!-- Chat Area -->
+<div class="flex flex-1 flex-col overflow-y-auto px-6 pt-6">
+<!-- Chat Messages -->
+<div class="flex flex-col gap-6">
+<!-- Agent Message -->
+<div class="flex items-end gap-3 max-w-2xl">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10 shrink-0" data-alt="StudyX Agent avatar" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCxe92kEf7gMHjbEHfZQu3F-p4XUO0nyA37zYAuOz7CiVXM_3hgmQ9gTI6zw7siePySKKolumdfXax7FjZ1tuLAnsb5rDYnZjw4LaKpR0MpYWUilv2DSX2VlCD416jAvXmMW3d3TA0MfMgLOkvyyvAqiNcFnqdLIk1LOdKh1Axylm3hUbhf-JtzopMhBhZ5WxEDvTgpGF0E65VLCr805vqY4iosbw4L8Qmm-sViAPSF8dXyszl2XldUnwHCnAakeX7o04PO1S6iwT_m");'></div>
+<div class="flex flex-1 flex-col gap-1 items-start">
+<p class="text-text-light-secondary dark:text-text-dark-secondary text-sm font-medium">StudyX Agent</p>
+<p class="text-base font-normal leading-normal rounded-xl rounded-bl-none px-4 py-3 bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark text-text-light-primary dark:text-text-dark-primary">
+                                Welcome to your Calculus assistant! Ask me a question or type 'start practice' to begin.
+                            </p>
+</div>
+</div>
+<!-- User Message -->
+<div class="flex items-end gap-3 justify-end max-w-2xl self-end">
+<div class="flex flex-1 flex-col gap-1 items-end">
+<p class="text-text-light-secondary dark:text-text-dark-secondary text-sm font-medium text-right">User</p>
+<p class="text-base font-normal leading-normal rounded-xl rounded-br-none px-4 py-3 bg-primary text-white">
+                                Can you explain the fundamental theorem of calculus?
+                            </p>
+</div>
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10 shrink-0" data-alt="User avatar" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuArOSw_thOdEPdwA2mvCtr7bEwI1o26yboOOAitTWIHYDPmbnNwTq9qItlBoeGCOr1aJjqMhNBQ6lKQ0-FywpKbLhS4HDngJqzdL16mCaOdDxYNZH0_JjfcAVaUUnkUUssz6tNH7d5-jAxm5SCFvP45wXOq1X3Pwznad2FF4YUy9U54XVc4pKeL7dCeWLUku3EEI8Ji5Xlx2TiG0YH8wH2sZucsahOVDTSIK3tjmHeMyEK779v0aYEOc-BEPveggYSTocakuyeLTCgr");'></div>
+</div>
+<!-- Agent "Thinking" Message -->
+<div class="flex items-end gap-3 max-w-2xl">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10 shrink-0" data-alt="StudyX Agent avatar" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuD4akB4LF1N3Soza8KZVpuDmX2j9J1Bm-Q7ClnC4wgqdXiZ6gWh0GikuESsR5ipv-M9eN48aHZTdCPsjIQAUFgiyvioA_Sk_14dwwbvFKoIJSRPlAq_kFDf1rz5-dqEkf9nEE2-5vA6R0ip58qcct5NzBXsF3iyDqi2LSJgsfUyXFItvX1CwxGl-MVLpHEufw0lwuexPO6Xkfn83jSdg42dyxyrjn8WNSJFcbSuhlcuscBOyRnZuEg6m5G2gYpvxIUvPJ_Cw1xWPRw8");'></div>
+<div class="flex flex-1 flex-col gap-1 items-start">
+<p class="text-text-light-secondary dark:text-text-dark-secondary text-sm font-medium">StudyX Agent</p>
+<div class="text-base font-normal leading-normal flex items-center gap-2 rounded-xl rounded-bl-none px-4 py-3 bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark text-text-light-primary dark:text-text-dark-primary">
+<div class="w-1.5 h-1.5 rounded-full bg-text-light-secondary dark:bg-text-dark-secondary animate-[bounce_1s_infinite_0.1s]"></div>
+<div class="w-1.5 h-1.5 rounded-full bg-text-light-secondary dark:bg-text-dark-secondary animate-[bounce_1s_infinite_0.2s]"></div>
+<div class="w-1.5 h-1.5 rounded-full bg-text-light-secondary dark:bg-text-dark-secondary animate-[bounce_1s_infinite_0.3s]"></div>
+</div>
+</div>
+</div>
+</div>
+<div class="flex-grow"></div> <!-- Spacer to push content up -->
+</div>
+<!-- Text Input Area -->
+<div class="px-6 pb-6 pt-4 bg-background-light dark:bg-background-dark">
+<div class="relative">
+<input class="w-full h-12 px-4 pr-12 rounded-lg bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark focus:ring-2 focus:ring-primary focus:outline-none transition-shadow text-text-light-primary dark:text-text-dark-primary placeholder-text-light-secondary dark:placeholder-text-dark-secondary" placeholder="Ask a calculus question or type your answer..." type="text"/>
+<button class="absolute right-2 top-1/2 -translate-y-1/2 flex items-center justify-center size-8 rounded-lg bg-primary text-white hover:bg-primary/90 transition-colors">
+<span class="material-symbols-outlined text-xl">send</span>
+</button>
+</div>
+</div>
+</main>
+</div>
+<style>
+      @keyframes bounce {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-4px); }
+      }
+    </style>
+</body></html>

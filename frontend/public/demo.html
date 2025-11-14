@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html class="light" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>StudyX Skill Agent Demo</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "primary": "#137fec",
+              "background-light": "#f6f7f8",
+              "background-dark": "#101922",
+              "surface-light": "#ffffff",
+              "surface-dark": "#1a2632",
+              "text-light-primary": "#0d141b",
+              "text-dark-primary": "#f6f7f8",
+              "text-light-secondary": "#4c739a",
+              "text-dark-secondary": "#a0b3c7",
+              "border-light": "#e7edf3",
+              "border-dark": "#2a3b4d"
+            },
+            fontFamily: {
+              "display": ["Space Grotesk", "sans-serif"]
+            },
+            borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+        }
+        @keyframes bounce {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-4px); }
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-text-light-primary dark:text-text-dark-primary">
+<div class="flex h-screen w-full">
+<!-- SideNavBar -->
+<aside class="flex h-full w-64 flex-col justify-between border-r border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark p-4">
+<div class="flex flex-col gap-6">
+<div class="flex items-center gap-3 px-2">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-lg size-10" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuDSpXpUeQFNhzxQIoAIi7RVey3s_Kg0LtNFS9WswZKutC6WUs9vIxo8_6QyNO27m6hlLXEbVG3-PxYyOcktW-sXx6ageG7DxuTTM7j4weDKp7akm6V5MrsGoCm6uuoPFbMEw-bJZwmDc1a7EwsyedARNMzmuie5bknIxwPkHUTQ2BVsAy8itZojKioaFIV05B5hD1Jh3fx9ee34XsTmHjkvSLlBaBzXmj6Ob2zyEe3w1_Okns5xwcEMb9BdwpBYEN4Iz4KcJlfQAI8D");'></div>
+<div class="flex flex-col">
+<h1 class="text-base font-bold">StudyX</h1>
+<p class="text-sm text-text-light-secondary dark:text-text-dark-secondary">Skill Agent Demo</p>
+</div>
+</div>
+<div class="flex flex-col gap-1">
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-primary/10 transition-colors" href="#">
+<span class="material-symbols-outlined text-xl">dashboard</span>
+<p class="text-sm font-medium">Dashboard</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/10 text-primary" href="#">
+<span class="material-symbols-outlined text-xl">calculate</span>
+<p class="text-sm font-bold">Learning Session</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-primary/10 transition-colors" href="#">
+<span class="material-symbols-outlined text-xl">lightbulb</span>
+<p class="text-sm font-medium">Concept Explanation</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-primary/10 transition-colors" href="#">
+<span class="material-symbols-outlined text-xl">functions</span>
+<p class="text-sm font-medium">Integration by Parts</p>
+</a>
+</div>
+</div>
+<div class="flex flex-col gap-4">
+<button onclick="handleNewChat()" class="flex w-full cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 bg-primary text-white text-sm font-bold tracking-wide hover:bg-primary/90 transition-colors">
+<span class="truncate">New Chat</span>
+</button>
+<div class="flex flex-col gap-1">
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-primary/10 transition-colors" href="#">
+<span class="material-symbols-outlined text-xl">settings</span>
+<p class="text-sm font-medium">Settings</p>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-primary/10 transition-colors" href="#">
+<span class="material-symbols-outlined text-xl">help</span>
+<p class="text-sm font-medium">Help</p>
+</a>
+</div>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="flex flex-1 flex-col">
+<!-- TopNavBar -->
+<header class="flex h-16 items-center justify-between whitespace-nowrap border-b border-solid border-border-light dark:border-border-dark px-6 bg-surface-light dark:bg-surface-dark">
+<div class="flex items-center gap-4">
+<h2 class="text-lg font-bold tracking-tight">AI Learning Assistant</h2>
+</div>
+<div class="flex flex-1 items-center justify-end gap-4">
+<button class="flex cursor-pointer items-center justify-center overflow-hidden rounded-lg size-10 bg-primary/10 text-text-light-primary dark:text-text-dark-primary hover:bg-primary/20 transition-colors">
+<span class="material-symbols-outlined text-xl">notifications</span>
+</button>
+<button class="flex cursor-pointer items-center justify-center overflow-hidden rounded-lg size-10 bg-primary/10 text-text-light-primary dark:text-text-dark-primary hover:bg-primary/20 transition-colors">
+<span class="material-symbols-outlined text-xl">bolt</span>
+</button>
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuC2JV0TerXdmHAVpbSKv_E1GuCwolwncFI-4GV6gTe4KD7jb6L14FEWUoI9GNNTmFjCICvExlwaH0u-Xlc__WwIhFeFn3tGycB_um-i2WDCBZ8qh8z4mzXJSai0ODWV21ZaxGiyMm-Xot9-QBjSTEmRiy_zgJShKMe01fF7msbIDwkAsrstdzzcpXlnafKBGO39znKCb-jbgC-p4Eakjg_qCdJ4FqHjX2gefcJUbHapvopm943I8lcboavCnjZrtm0h5-VQbnuXjwps");'></div>
+</div>
+</header>
+<!-- Chat Area -->
+<div class="flex flex-1 flex-col overflow-y-auto px-6 pt-6" id="chatMessages">
+<div class="flex flex-col gap-6">
+<!-- Agent Welcome Message -->
+<div class="flex items-end gap-3 max-w-2xl">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10 shrink-0" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCxe92kEf7gMHjbEHfZQu3F-p4XUO0nyA37zYAuOz7CiVXM_3hgmQ9gTI6zw7siePySKKolumdfXax7FjZ1tuLAnsb5rDYnZjw4LaKpR0MpYWUilv2DSX2VlCD416jAvXmMW3d3TA0MfMgLOkvyyvAqiNcFnqdLIk1LOdKh1Axylm3hUbhf-JtzopMhBhZ5WxEDvTgpGF0E65VLCr805vqY4iosbw4L8Qmm-sViAPSF8dXyszl2XldUnwHCnAakeX7o04PO1S6iwT_m");'></div>
+<div class="flex flex-1 flex-col gap-1 items-start">
+<p class="text-text-light-secondary dark:text-text-dark-secondary text-sm font-medium">StudyX Agent</p>
+                <p class="text-base font-normal leading-normal rounded-xl rounded-bl-none px-4 py-3 bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark text-text-light-primary dark:text-text-dark-primary">
+                    开始和 AI 学习助手对话吧！你可以尝试：
+                    <br>• "给我几道微积分练习题"（数学）
+                    <br>• "解释一下牛顿第二定律"（物理）
+                    <br>• "什么是光合作用"（生物）
+                    <br>• "帮我理解二战的起因"（历史）
+                </p>
+</div>
+</div>
+</div>
+<div class="flex-grow"></div>
+</div>
+<!-- Text Input Area -->
+<div class="px-6 pb-6 pt-4 bg-background-light dark:bg-background-dark">
+<div class="relative">
+<input id="messageInput" class="w-full h-12 px-4 pr-12 rounded-lg bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark focus:ring-2 focus:ring-primary focus:outline-none transition-shadow text-text-light-primary dark:text-text-dark-primary placeholder-text-light-secondary dark:placeholder-text-dark-secondary" placeholder="Ask a question or type your answer..." type="text" onkeypress="if(event.key==='Enter') handleSend()"/>
+<button onclick="handleSend()" class="absolute right-2 top-1/2 -translate-y-1/2 flex items-center justify-center size-8 rounded-lg bg-primary text-white hover:bg-primary/90 transition-colors">
+<span class="material-symbols-outlined text-xl">send</span>
+</button>
+</div>
+</div>
+</main>
+</div>
+
+<script>
+// API 配置
+const API_BASE = 'http://localhost:8000';
+const USER_ID = 'demo-user';
+const SESSION_ID = 'demo-session';
+
+// 发送消息
+async function handleSend() {
+    const input = document.getElementById('messageInput');
+    const message = input.value.trim();
+    
+    if (!message) return;
+    
+    // 清空输入框
+    input.value = '';
+    
+    // 添加用户消息
+    addUserMessage(message);
+    
+    // 显示加载中
+    addLoadingMessage();
+    
+    try {
+        const response = await fetch(`${API_BASE}/api/agent/chat`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                user_id: USER_ID,
+                session_id: SESSION_ID,
+                message: message
+            })
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        // 移除加载消息
+        removeLoadingMessage();
+        
+        // 添加 Agent 响应
+        addAgentMessage(data);
+        
+    } catch (error) {
+        console.error('Error:', error);
+        removeLoadingMessage();
+        addErrorMessage('No response from server. Please check your connection.');
+    }
+}
+
+// 添加用户消息
+function addUserMessage(text) {
+    const messagesDiv = document.getElementById('chatMessages').querySelector('.flex.flex-col.gap-6');
+    const userMsg = `
+        <div class="flex items-end gap-3 justify-end max-w-2xl self-end">
+            <div class="flex flex-1 flex-col gap-1 items-end">
+                <p class="text-text-light-secondary dark:text-text-dark-secondary text-sm font-medium text-right">User</p>
+                <p class="text-base font-normal leading-normal rounded-xl rounded-br-none px-4 py-3 bg-primary text-white">
+                    ${text}
+                </p>
+            </div>
+            <div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10 shrink-0" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuArOSw_thOdEPdwA2mvCtr7bEwI1o26yboOOAitTWIHYDPmbnNwTq9qItlBoeGCOr1aJjqMhNBQ6lKQ0-FywpKbLhS4HDngJqzdL16mCaOdDxYNZH0_JjfcAVaUUnkUUssz6tNH7d5-jAxm5SCFvP45wXOq1X3Pwznad2FF4YUy9U54XVc4pKeL7dCeWLUku3EEI8Ji5Xlx2TiG0YH8wH2sZucsahOVDTSIK3tjmHeMyEK779v0aYEOc-BEPveggYSTocakuyeLTCgr");'></div>
+        </div>
+    `;
+    messagesDiv.insertAdjacentHTML('beforeend', userMsg);
+    scrollToBottom();
+}
+
+// 添加加载消息
+function addLoadingMessage() {
+    const messagesDiv = document.getElementById('chatMessages').querySelector('.flex.flex-col.gap-6');
+    const loadingMsg = `
+        <div class="flex items-end gap-3 max-w-2xl" id="loadingMessage">
+            <div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10 shrink-0" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuD4akB4LF1N3Soza8KZVpuDmX2j9J1Bm-Q7ClnC4wgqdXiZ6gWh0GikuESsR5ipv-M9eN48aHZTdCPsjIQAUFgiyvioA_Sk_14dwwbvFKoIJSRPlAq_kFDf1rz5-dqEkf9nEE2-5vA6R0ip58qcct5NzBXsF3iyDqi2LSJgsfUyXFItvX1CwxGl-MVLpHEufw0lwuexPO6Xkfn83jSdg42dyxyrjn8WNSJFcbSuhlcuscBOyRnZuEg6m5G2gYpvxIUvPJ_Cw1xWPRw8");'></div>
+            <div class="flex flex-1 flex-col gap-1 items-start">
+                <p class="text-text-light-secondary dark:text-text-dark-secondary text-sm font-medium">StudyX Agent</p>
+                <div class="text-base font-normal leading-normal flex items-center gap-2 rounded-xl rounded-bl-none px-4 py-3 bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark text-text-light-primary dark:text-text-dark-primary">
+                    <div class="w-1.5 h-1.5 rounded-full bg-text-light-secondary dark:bg-text-dark-secondary animate-[bounce_1s_infinite_0.1s]"></div>
+                    <div class="w-1.5 h-1.5 rounded-full bg-text-light-secondary dark:bg-text-dark-secondary animate-[bounce_1s_infinite_0.2s]"></div>
+                    <div class="w-1.5 h-1.5 rounded-full bg-text-light-secondary dark:bg-text-dark-secondary animate-[bounce_1s_infinite_0.3s]"></div>
+                </div>
+            </div>
+        </div>
+    `;
+    messagesDiv.insertAdjacentHTML('beforeend', loadingMsg);
+    scrollToBottom();
+}
+
+// 移除加载消息
+function removeLoadingMessage() {
+    const loadingMsg = document.getElementById('loadingMessage');
+    if (loadingMsg) loadingMsg.remove();
+}
+
+// 渲染 QuizCard
+function renderQuizCard(content) {
+    const questions = content.questions || [];
+    if (questions.length === 0) return '<p>暂无题目</p>';
+    
+    let html = '<div class="flex flex-col gap-6 w-full">';
+    
+    questions.forEach((q, idx) => {
+        html += `
+            <div class="flex flex-col gap-6 rounded-xl border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark p-6 shadow-sm">
+                <div class="flex flex-col gap-3">
+                    <p class="text-primary text-base font-medium">${content.subject || '练习题'}</p>
+                    <div class="rounded bg-slate-200 dark:bg-slate-700">
+                        <div class="h-2 rounded bg-primary" style="width: ${((idx + 1) / questions.length * 100)}%;"></div>
+                    </div>
+                    <p class="text-slate-500 dark:text-slate-400 text-sm">Question ${idx + 1} of ${questions.length}</p>
+                </div>
+                <div class="border-t border-border-light dark:border-border-dark"></div>
+                <h1 class="text-text-light-primary dark:text-text-dark-primary tracking-tight text-xl font-bold">${q.question_text || ''}</h1>
+                <div class="flex flex-col gap-3" style="--radio-dot-svg: url('data:image/svg+xml,%3csvg viewBox=%270 0 16 16%27 fill=%27rgb(19,127,236)%27 xmlns=%27http://www.w3.org/2000/svg%27%3e%3ccircle cx=%278%27 cy=%278%27 r=%273%27/%3e%3c/svg%3e');">`;
+        
+        (q.options || []).forEach((opt) => {
+            html += `
+                    <label class="flex items-center gap-4 rounded-lg border border-solid border-border-light dark:border-border-dark p-4 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 has-[:checked]:border-primary has-[:checked]:bg-primary/10">
+                        <input class="h-5 w-5 border-2 border-border-light dark:border-border-dark bg-transparent text-transparent checked:border-primary checked:bg-[image:--radio-dot-svg] focus:outline-none focus:ring-0" name="quiz_${idx}" type="radio"/>
+                        <div class="flex grow flex-col"><p class="text-text-light-primary dark:text-text-dark-primary text-sm font-medium">${opt}</p></div>
+                    </label>`;
+        });
+        
+        html += `
+                </div>`;
+        
+        if (q.explanation) {
+            html += `
+                <div class="flex flex-col gap-4 rounded-lg bg-slate-50 dark:bg-slate-800/50 p-4 mt-2">
+                    <h3 class="text-lg font-bold text-text-light-primary dark:text-text-dark-primary">解析</h3>
+                    <p class="text-sm text-slate-600 dark:text-slate-300">${q.explanation}</p>
+                    <p class="text-sm text-primary font-medium">正确答案: ${q.correct_answer}</p>
+                </div>`;
+        }
+        
+        html += `
+            </div>`;
+    });
+    
+    html += '</div>';
+    return html;
+}
+
+// 渲染 ExplainCard
+function renderExplainCard(content) {
+    const concept = content.concept || '';
+    const intuition = content.intuition || '';
+    const formalDef = content.formal_definition || '';
+    const examples = content.examples || [];
+    
+    let html = `
+        <div class="w-full rounded-xl border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark shadow-sm">
+            <div class="p-6">
+                <h1 class="text-2xl font-bold text-text-light-primary dark:text-text-dark-primary tracking-tight">${concept}</h1>
+            </div>
+            <div class="px-6 pb-6 text-base text-text-light-primary dark:text-text-dark-primary space-y-4">
+                <p>${intuition}</p>`;
+    
+    if (formalDef) {
+        html += `
+                <div class="my-4 p-4 bg-background-light dark:bg-background-dark rounded-lg font-mono text-sm">
+                    <span class="font-bold">${formalDef}</span>
+                </div>`;
+    }
+    
+    if (examples && examples.length > 0) {
+        html += `
+            </div>
+            <hr class="border-border-light dark:border-border-dark"/>
+            <div class="p-6">
+                <h2 class="text-xl font-semibold text-text-light-primary dark:text-text-dark-primary mb-5">例子</h2>
+                <div class="space-y-6">`;
+        
+        examples.forEach((ex, idx) => {
+            html += `
+                    <div class="flex flex-col gap-3">
+                        <h3 class="font-semibold text-text-light-primary dark:text-text-dark-primary">
+                            <span class="bg-primary text-white rounded-full h-6 w-6 inline-flex items-center justify-center text-sm mr-2">${idx + 1}</span>
+                            ${ex.example || ex.title || ex.problem || '例子 ' + (idx + 1)}
+                        </h3>
+                        <div class="pl-8 text-slate-600 dark:text-slate-300 border-l-2 border-primary/50 ml-3">
+                            <p>${ex.explanation || ex.solution || ''}</p>
+                        </div>
+                    </div>`;
+        });
+        
+        html += `
+                </div>`;
+    }
+    
+    html += `
+            </div>
+        </div>`;
+    
+    return html;
+}
+
+// 渲染 FlashcardSet
+function renderFlashcardSet(content) {
+    const cards = content.cards || [];
+    if (cards.length === 0) return '<p>暂无抽认卡</p>';
+    
+    let html = '<div class="flex flex-col gap-4 w-full">';
+    html += `<h3 class="text-lg font-bold text-text-light-primary dark:text-text-dark-primary">📚 抽认卡集合</h3>`;
+    
+    cards.forEach((card, idx) => {
+        html += `
+            <div class="rounded-xl border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark p-6 shadow-sm">
+                <div class="flex items-center gap-2 mb-4">
+                    <span class="bg-primary text-white rounded-full h-6 w-6 inline-flex items-center justify-center text-sm">${idx + 1}</span>
+                    <span class="text-sm text-slate-500">${card.card_type || 'basic'}</span>
+                </div>
+                <div class="space-y-4">
+                    <div>
+                        <p class="text-sm font-medium text-slate-500 mb-2">正面（Front）</p>
+                        <p class="text-base text-text-light-primary dark:text-text-dark-primary">${card.front}</p>
+                    </div>
+                    <div class="border-t border-border-light dark:border-border-dark pt-4">
+                        <p class="text-sm font-medium text-slate-500 mb-2">背面（Back）</p>
+                        <p class="text-base text-text-light-primary dark:text-text-dark-primary">${card.back}</p>
+                    </div>`;
+        
+        if (card.hints && card.hints.length > 0) {
+            html += `
+                    <div class="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-lg">
+                        <p class="text-sm font-medium text-primary mb-1">💡 提示</p>
+                        <ul class="text-sm text-slate-600 dark:text-slate-300 list-disc list-inside">
+                            ${card.hints.map(h => `<li>${h}</li>`).join('')}
+                        </ul>
+                    </div>`;
+        }
+        
+        html += `
+                </div>
+            </div>`;
+    });
+    
+    html += '</div>';
+    return html;
+}
+
+// 渲染 Learning Bundle
+function renderLearningBundle(content) {
+    const components = content.components || [];
+    if (components.length === 0) return '<p>暂无学习资料</p>';
+    
+    let html = '<div class="flex flex-col gap-6 w-full">';
+    html += `
+        <div class="rounded-xl border border-primary/50 bg-primary/5 p-4">
+            <h3 class="text-xl font-bold text-primary mb-2">📦 完整学习包</h3>
+            <p class="text-sm text-slate-600 dark:text-slate-300">${content.learning_path ? content.learning_path.join(' → ') : '包含多个学习组件'}</p>
+            ${content.estimated_time_minutes ? `<p class="text-sm text-primary mt-2">⏱️ 预计学习时间：${content.estimated_time_minutes} 分钟</p>` : ''}
+        </div>`;
+    
+    components.forEach((comp, idx) => {
+        html += `<div class="border-l-4 border-primary pl-4">`;
+        html += `<h4 class="text-md font-bold text-primary mb-3">第 ${idx + 1} 部分：${comp.component_type === 'explanation' ? '概念讲解' : comp.component_type === 'quiz' ? '练习题' : '抽认卡'}</h4>`;
+        
+        if (comp.component_type === 'explanation' && comp.content.concept) {
+            html += renderExplainCard(comp.content);
+        } else if (comp.component_type === 'quiz' && comp.content.questions) {
+            html += renderQuizCard(comp.content);
+        } else if (comp.component_type === 'flashcard' && comp.content.cards) {
+            html += renderFlashcardSet(comp.content);
+        } else {
+            html += `<pre class="text-xs">${JSON.stringify(comp.content, null, 2)}</pre>`;
+        }
+        
+        html += `</div>`;
+    });
+    
+    html += '</div>';
+    return html;
+}
+
+// 添加 Agent 响应
+function addAgentMessage(data) {
+    const messagesDiv = document.getElementById('chatMessages').querySelector('.flex.flex-col.gap-6');
+    
+    // 根据 content_type 渲染不同的卡片
+    let contentHtml = '';
+    
+    if (data.content_type === 'mixed_response' && data.response_content.results) {
+        // 混合请求：渲染多个结果
+        contentHtml = '<div class="flex flex-col gap-6 w-full">';
+        data.response_content.results.forEach((result, idx) => {
+            contentHtml += `<div class="border-l-4 border-primary pl-4">`;
+            contentHtml += `<h3 class="text-lg font-bold text-primary mb-3">📦 结果 ${idx + 1}</h3>`;
+            
+            if (result.content_type === 'quiz_set' && result.content.questions) {
+                contentHtml += renderQuizCard(result.content);
+            } else if (result.content_type === 'explanation' && result.content.concept) {
+                contentHtml += renderExplainCard(result.content);
+            } else if (result.content_type === 'flashcard_set' && result.content.cards) {
+                contentHtml += renderFlashcardSet(result.content);
+            } else if (result.content_type === 'learning_bundle' && result.content.components) {
+                contentHtml += renderLearningBundle(result.content);
+            } else {
+                contentHtml += `<pre class="text-xs">${JSON.stringify(result.content, null, 2)}</pre>`;
+            }
+            
+            contentHtml += `</div>`;
+        });
+        contentHtml += '</div>';
+    } else if (data.content_type === 'quiz_set' && data.response_content.questions) {
+        contentHtml = renderQuizCard(data.response_content);
+    } else if (data.content_type === 'explanation' && data.response_content.concept) {
+        // Debug: 打印 examples 数组查看结构
+        console.log('Explanation content:', data.response_content);
+        console.log('Examples:', data.response_content.examples);
+        contentHtml = renderExplainCard(data.response_content);
+    } else if (data.content_type === 'flashcard_set' && data.response_content.cards) {
+        contentHtml = renderFlashcardSet(data.response_content);
+    } else if (data.content_type === 'learning_bundle' && data.response_content.components) {
+        contentHtml = renderLearningBundle(data.response_content);
+    } else if (data.content_type === 'text' && data.response_content.text) {
+        // 文本对话（如 "other" 意图）
+        contentHtml = `<p class="text-base font-normal leading-normal rounded-xl rounded-bl-none px-4 py-3 bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark text-text-light-primary dark:text-text-dark-primary whitespace-pre-wrap max-w-2xl">${data.response_content.text}</p>`;
+    } else {
+        // 默认渲染 JSON
+        contentHtml = `<p class="text-base font-normal leading-normal rounded-xl rounded-bl-none px-4 py-3 bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark text-text-light-primary dark:text-text-dark-primary whitespace-pre-wrap font-mono text-xs overflow-x-auto max-w-2xl">${JSON.stringify(data.response_content, null, 2)}</p>`;
+    }
+    
+    const agentMsg = `
+        <div class="flex items-start gap-3 w-full">
+            <div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10 shrink-0" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCxe92kEf7gMHjbEHfZQu3F-p4XUO0nyA37zYAuOz7CiVXM_3hgmQ9gTI6zw7siePySKKolumdfXax7FjZ1tuLAnsb5rDYnZjw4LaKpR0MpYWUilv2DSX2VlCD416jAvXmMW3d3TA0MfMgLOkvyyvAqiNcFnqdLIk1LOdKh1Axylm3hUbhf-JtzopMhBhZ5WxEDvTgpGF0E65VLCr805vqY4iosbw4L8Qmm-sViAPSF8dXyszl2XldUnwHCnAakeX7o04PO1S6iwT_m");'></div>
+            <div class="flex flex-1 flex-col gap-1 items-start w-full">
+                <p class="text-text-light-secondary dark:text-text-dark-secondary text-sm font-medium">StudyX Agent</p>
+                ${contentHtml}
+            </div>
+        </div>
+    `;
+    messagesDiv.insertAdjacentHTML('beforeend', agentMsg);
+    scrollToBottom();
+}
+
+// 添加错误消息
+function addErrorMessage(errorText) {
+    const messagesDiv = document.getElementById('chatMessages').querySelector('.flex.flex-col.gap-6');
+    const errorMsg = `
+        <div class="flex items-end gap-3 max-w-2xl">
+            <div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10 shrink-0" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCxe92kEf7gMHjbEHfZQu3F-p4XUO0nyA37zYAuOz7CiVXM_3hgmQ9gTI6zw7siePySKKolumdfXax7FjZ1tuLAnsb5rDYnZjw4LaKpR0MpYWUilv2DSX2VlCD416jAvXmMW3d3TA0MfMgLOkvyyvAqiNcFnqdLIk1LOdKh1Axylm3hUbhf-JtzopMhBhZ5WxEDvTgpGF0E65VLCr805vqY4iosbw4L8Qmm-sViAPSF8dXyszl2XldUnwHCnAakeX7o04PO1S6iwT_m");'></div>
+            <div class="flex flex-1 flex-col gap-1 items-start">
+                <p class="text-text-light-secondary dark:text-text-dark-secondary text-sm font-medium">StudyX Agent</p>
+                <p class="text-base font-normal leading-normal rounded-xl rounded-bl-none px-4 py-3 bg-red-50 border border-red-200 text-red-600">
+                    ❌ ${errorText}
+                </p>
+            </div>
+        </div>
+    `;
+    messagesDiv.insertAdjacentHTML('beforeend', errorMsg);
+    scrollToBottom();
+}
+
+// 滚动到底部
+function scrollToBottom() {
+    const chatArea = document.getElementById('chatMessages');
+    chatArea.scrollTop = chatArea.scrollHeight;
+}
+
+// 新建聊天
+function handleNewChat() {
+    const messagesDiv = document.getElementById('chatMessages').querySelector('.flex.flex-col.gap-6');
+    messagesDiv.innerHTML = `
+        <div class="flex items-end gap-3 max-w-2xl">
+            <div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10 shrink-0" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCxe92kEf7gMHjbEHfZQu3F-p4XUO0nyA37zYAuOz7CiVXM_3hgmQ9gTI6zw7siePySKKolumdfXax7FjZ1tuLAnsb5rDYnZjw4LaKpR0MpYWUilv2DSX2VlCD416jAvXmMW3d3TA0MfMgLOkvyyvAqiNcFnqdLIk1LOdKh1Axylm3hUbhf-JtzopMhBhZ5WxEDvTgpGF0E65VLCr805vqY4iosbw4L8Qmm-sViAPSF8dXyszl2XldUnwHCnAakeX7o04PO1S6iwT_m");'></div>
+            <div class="flex flex-1 flex-col gap-1 items-start">
+                <p class="text-text-light-secondary dark:text-text-dark-secondary text-sm font-medium">StudyX Agent</p>
+                <p class="text-base font-normal leading-normal rounded-xl rounded-bl-none px-4 py-3 bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark text-text-light-primary dark:text-text-dark-primary">
+                    开始和 AI 学习助手对话吧！你可以尝试：
+                    <br>• "给我几道微积分练习题"（数学）
+                    <br>• "解释一下牛顿第二定律"（物理）
+                    <br>• "什么是光合作用"（生物）
+                    <br>• "帮我理解二战的起因"（历史）
+                </p>
+            </div>
+        </div>
+    `;
+}
+</script>
+</body>
+</html>
+

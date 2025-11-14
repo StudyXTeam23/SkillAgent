@@ -1,0 +1,83 @@
+id: "quiz_skill"
+display_name: "练习题生成"
+version: "1.0.0"
+intent_tags:
+  - "quiz_request"
+  - "quiz"
+  - "practice"
+  - "exercise"
+
+input_schema:
+  type: "object"
+  properties:
+    subject:
+      type: "string"
+      description: "学科（如：数学、物理、化学、历史等）"
+    topic:
+      type: "string"
+      description: "具体主题"
+    difficulty:
+      type: "string"
+      enum: ["easy", "medium", "hard"]
+      default: "medium"
+    num_questions:
+      type: "integer"
+      minimum: 1
+      maximum: 10
+      default: 5
+    memory_summary:
+      type: "string"
+      description: "用户学习画像摘要"
+    content_context:
+      type: "array"
+      items:
+        type: "string"
+      description: "相关知识点片段"
+  required:
+    - "subject"
+    - "topic"
+
+output_schema:
+  type: "object"
+  properties:
+    quiz_set_id:
+      type: "string"
+    subject:
+      type: "string"
+    topic:
+      type: "string"
+    difficulty:
+      type: "string"
+    questions:
+      type: "array"
+      items:
+        type: "object"
+    estimated_time_minutes:
+      type: "integer"
+    learning_objectives:
+      type: "array"
+      items:
+        type: "string"
+  required:
+    - "quiz_set_id"
+    - "questions"
+
+models:
+  primary: "gemini-2.0-flash-exp"
+  fallback: "gemini-2.0-flash-exp"
+
+context:
+  need_user_memory: true
+  need_content_store: true
+  retrieve_top_k: 3
+
+cost:
+  model_class: "medium"
+  context_size: "medium"
+  expected_rounds: 1
+
+composable: true
+dependencies: []
+
+prompt_file: "quiz_generation_skill.txt"
+

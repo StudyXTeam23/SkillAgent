@@ -1,0 +1,26 @@
+# FastAPI 核心框架
+fastapi==0.115.0
+uvicorn[standard]==0.30.0
+pydantic==2.9.0
+pydantic-settings==2.5.0
+
+# Google Gemini API
+google-generativeai==0.8.0
+
+# AWS S3 存储（用于 demo 阶段替代数据库）
+boto3==1.35.0
+botocore==1.35.0
+
+# YAML 解析（Skill Registry 配置）
+pyyaml==6.0.1
+
+# JSON Schema 验证
+jsonschema==4.23.0
+
+# HTTP 客户端
+httpx==0.27.0
+
+# 日志和工具
+python-multipart==0.0.9
+python-dotenv==1.0.1
+

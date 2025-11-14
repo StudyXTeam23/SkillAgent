@@ -1,0 +1,102 @@
+id: flashcard_skill
+display_name: 抽认卡生成
+description: 根据学习主题生成高质量的抽认卡（Flashcard），帮助学生记忆和复习关键概念
+version: "1.0.0"
+
+intent_tags:
+  - flashcard_request
+  - flashcard
+  - anki
+  - memory_card
+  - study_card
+
+input_schema:
+  type: object
+  properties:
+    subject:
+      type: string
+      description: "学科（如：数学、物理、历史、生物）"
+    topic:
+      type: string
+      description: "具体主题（如：微积分-导数、历史-二战）"
+    num_cards:
+      type: integer
+      description: "抽认卡数量（默认 5-10 张）"
+      default: 8
+    difficulty:
+      type: string
+      enum: ["easy", "medium", "hard"]
+      description: "难度级别"
+      default: "medium"
+    card_type:
+      type: string
+      enum: ["basic", "cloze", "reverse"]
+      description: "卡片类型：basic=基础正反面，cloze=填空式，reverse=可逆"
+      default: "basic"
+    memory_summary:
+      type: string
+      description: "用户学习画像摘要"
+  required:
+    - subject
+    - topic
+
+output_schema:
+  type: object
+  properties:
+    flashcard_set_id:
+      type: string
+      description: "抽认卡集合唯一标识"
+    subject:
+      type: string
+      description: "学科"
+    topic:
+      type: string
+      description: "主题"
+    cards:
+      type: array
+      items:
+        type: object
+        properties:
+          card_id:
+            type: string
+            description: "卡片ID"
+          front:
+            type: string
+            description: "正面内容（问题或提示）"
+          back:
+            type: string
+            description: "背面内容（答案或解释）"
+          card_type:
+            type: string
+            description: "卡片类型"
+          hints:
+            type: array
+            items:
+              type: string
+            description: "记忆提示"
+          related_concepts:
+            type: array
+            items:
+              type: string
+            description: "相关概念"
+  required:
+    - flashcard_set_id
+    - subject
+    - topic
+    - cards
+
+models:
+  primary: "gemini-2.0-flash-exp"
+  fallback: "gemini-2.0-flash-exp"
+
+context:
+  need_user_memory: true
+  need_content_store: false
+
+prompt_file: "flashcard_skill.txt"
+
+metadata:
+  author: "StudyX Skill Agent Team"
+  created_at: "2025-01-13"
+  tags: ["flashcard", "memory", "review", "learning"]
+

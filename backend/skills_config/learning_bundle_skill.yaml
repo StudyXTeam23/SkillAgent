@@ -1,0 +1,113 @@
+id: learning_bundle_skill
+display_name: 学习包生成
+description: 根据学习主题自动生成完整的学习资料包，包括概念讲解、练习题、抽认卡等多种学习材料
+version: "1.0.0"
+
+intent_tags:
+  - learning_bundle
+  - learning_bundle_request
+  - study_package
+  - complete_materials
+  - comprehensive_learning
+  - all_in_one
+
+input_schema:
+  type: object
+  properties:
+    subject:
+      type: string
+      description: "学科（如：数学、物理、历史、生物）"
+    topic:
+      type: string
+      description: "具体主题（如：微积分-导数、历史-文艺复兴）"
+    bundle_components:
+      type: array
+      items:
+        type: string
+        enum: ["explanation", "quiz", "flashcard"]
+      description: "学习包组件：explanation=概念讲解, quiz=练习题, flashcard=抽认卡"
+      default: ["explanation", "flashcard", "quiz"]
+    difficulty:
+      type: string
+      enum: ["easy", "medium", "hard"]
+      description: "整体难度级别"
+      default: "medium"
+    memory_summary:
+      type: string
+      description: "用户学习画像摘要"
+  required:
+    - subject
+    - topic
+
+output_schema:
+  type: object
+  properties:
+    bundle_id:
+      type: string
+      description: "学习包唯一标识"
+    subject:
+      type: string
+      description: "学科"
+    topic:
+      type: string
+      description: "主题"
+    components:
+      type: array
+      items:
+        type: object
+        properties:
+          component_type:
+            type: string
+            enum: ["explanation", "quiz", "flashcard"]
+            description: "组件类型"
+          skill_id:
+            type: string
+            description: "使用的技能ID"
+          content:
+            type: object
+            description: "组件内容"
+      description: "学习包包含的各个组件"
+    estimated_time_minutes:
+      type: integer
+      description: "预计学习时间（分钟）"
+    learning_path:
+      type: array
+      items:
+        type: string
+      description: "建议的学习顺序"
+  required:
+    - bundle_id
+    - subject
+    - topic
+    - components
+
+output_format: 
+  type: dictionary
+  description: |
+    返回包含多个学习组件的学习包
+    
+context_requirements:
+  - user_profile
+  - learning_path
+  
+# AI Model Configuration
+models:
+  primary: "gemini-2.0-flash-exp"
+  fallback: "gemini-2.0-flash-exp"
+
+max_tokens: 4000
+temperature: 0.7
+
+context:
+  need_user_memory: true
+  need_content_store: false
+
+prompt_file: "learning_bundle_skill.txt"
+
+metadata:
+  author: "StudyX Skill Agent Team"
+  created_at: "2025-01-13"
+  tags: ["bundle", "comprehensive", "multi-skill", "learning-path"]
+  is_composite: true
+  sub_skills: ["explain_skill", "quiz_skill", "flashcard_skill"]
+

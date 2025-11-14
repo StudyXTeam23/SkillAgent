@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>StudyX Quiz</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet"/>
+<script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101922",
+                        "success": "#28A745",
+                        "error": "#DC3545",
+                        "text-light": "#0d141b",
+                        "text-dark": "#e7edf3",
+                        "card-light": "#ffffff",
+                        "card-dark": "#182431",
+                        "border-light": "#cfdbe7",
+                        "border-dark": "#313f4e",
+                    },
+                    fontFamily: {
+                        "display": ["Lexend", "Noto Sans", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.75rem",
+                        "xl": "1rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+<body class="font-display bg-background-light dark:bg-background-dark">
+<div class="relative flex min-h-screen w-full flex-col group/design-root overflow-x-hidden">
+<div class="layout-container flex h-full grow flex-col">
+<header class="flex items-center justify-between whitespace-nowrap border-b border-solid border-border-light dark:border-border-dark px-6 md:px-10 py-4 bg-card-light dark:bg-card-dark">
+<div class="flex items-center gap-4 text-text-light dark:text-text-dark">
+<div class="size-6 text-primary">
+<svg fill="none" viewbox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+<path d="M44 11.2727C44 14.0109 39.8386 16.3957 33.69 17.6364C39.8386 18.877 44 21.2618 44 24C44 26.7382 39.8386 29.123 33.69 30.3636C39.8386 31.6043 44 33.9891 44 36.7273C44 40.7439 35.0457 44 24 44C12.9543 44 4 40.7439 4 36.7273C4 33.9891 8.16144 31.6043 14.31 30.3636C8.16144 29.123 4 26.7382 4 24C4 21.2618 8.16144 18.877 14.31 17.6364C8.16144 16.3957 4 14.0109 4 11.2727C4 7.25611 12.9543 4 24 4C35.0457 4 44 7.25611 44 11.2727Z" fill="currentColor"></path>
+</svg>
+</div>
+<h2 class="text-text-light dark:text-text-dark text-xl font-bold leading-tight tracking-[-0.015em]">StudyX</h2>
+</div>
+<div class="hidden md:flex flex-1 justify-center gap-8">
+<div class="flex items-center gap-9">
+<a class="text-text-light dark:text-text-dark text-sm font-medium leading-normal" href="#">Dashboard</a>
+<a class="text-primary text-sm font-bold leading-normal" href="#">Practice</a>
+<a class="text-text-light dark:text-text-dark text-sm font-medium leading-normal" href="#">History</a>
+<a class="text-text-light dark:text-text-dark text-sm font-medium leading-normal" href="#">Profile</a>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<button class="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 bg-primary text-slate-50 text-sm font-bold leading-normal tracking-[0.015em]">
+<span class="truncate">Upgrade</span>
+</button>
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10" data-alt="User avatar image" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuDphdvPnmzC3n-Hf3aZIGduH3GgW7yp6I6_UB7Dnx5P-H03jK2066UmzWYDBRAeYAbnXVi8L_DX1hQS8R94TTPkwPGOmku2EEfJkUHM783-4ADv940viP4V3Qeriaj0UWy6aW8-vnIMkiRq3uRPTQqlh6Xpi9FvBiQF8kWlajodgOl1B56IpBH6Ky54uE9rR1b0PJ0Z13yoL5FgqlslhsULlA7QMtm0vOTTSg3t48PgaxbUURA6QhvU5i1N3U8uG_TKI47jWm-0iYLd");'></div>
+</div>
+</header>
+<main class="flex flex-1 justify-center py-8 px-4 sm:px-6 md:py-12">
+<div class="layout-content-container flex flex-col w-full max-w-2xl flex-1 gap-8">
+<!-- Quiz Card: Before Submission -->
+<div class="flex flex-col gap-6 rounded-xl border border-border-light dark:border-border-dark bg-card-light dark:bg-card-dark p-6 sm:p-8 shadow-sm">
+<div class="flex flex-col gap-3">
+<div class="flex gap-6 justify-between"><p class="text-primary text-base font-medium leading-normal">微积分练习</p></div>
+<div class="rounded bg-slate-200 dark:bg-slate-700"><div class="h-2 rounded bg-primary" style="width: 20%;"></div></div>
+<p class="text-slate-500 dark:text-slate-400 text-sm font-normal leading-normal">Question 1 of 5</p>
+</div>
+<div class="border-t border-border-light dark:border-border-dark"></div>
+<h1 class="text-text-light dark:text-text-dark tracking-tight text-2xl md:text-3xl font-bold leading-tight text-left">What is the derivative of f(x) = x²?</h1>
+<div class="flex flex-col gap-3" style="--radio-dot-svg: url('data:image/svg+xml,%3csvg viewBox=%270 0 16 16%27 fill=%27rgb(19,127,236)%27 xmlns=%27http://www.w3.org/2000/svg%27%3e%3ccircle cx=%278%27 cy=%278%27 r=%273%27/%3e%3c/svg%3e');">
+<label class="flex items-center gap-4 rounded-lg border border-solid border-border-light dark:border-border-dark p-4 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 has-[:checked]:border-primary has-[:checked]:bg-primary/10 dark:has-[:checked]:bg-primary/20">
+<input class="h-5 w-5 border-2 border-border-light dark:border-border-dark bg-transparent text-transparent checked:border-primary checked:bg-[image:--radio-dot-svg] focus:outline-none focus:ring-0 focus:ring-offset-0 checked:focus:border-primary" name="quiz1" type="radio"/>
+<div class="flex grow flex-col"><p class="text-text-light dark:text-text-dark text-sm font-medium leading-normal">2x</p></div>
+</label>
+<label class="flex items-center gap-4 rounded-lg border border-solid border-border-light dark:border-border-dark p-4 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 has-[:checked]:border-primary has-[:checked]:bg-primary/10 dark:has-[:checked]:bg-primary/20">
+<input class="h-5 w-5 border-2 border-border-light dark:border-border-dark bg-transparent text-transparent checked:border-primary checked:bg-[image:--radio-dot-svg] focus:outline-none focus:ring-0 focus:ring-offset-0 checked:focus:border-primary" name="quiz1" type="radio"/>
+<div class="flex grow flex-col"><p class="text-text-light dark:text-text-dark text-sm font-medium leading-normal">x</p></div>
+</label>
+<label class="flex items-center gap-4 rounded-lg border border-solid border-border-light dark:border-border-dark p-4 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 has-[:checked]:border-primary has-[:checked]:bg-primary/10 dark:has-[:checked]:bg-primary/20">
+<input class="h-5 w-5 border-2 border-border-light dark:border-border-dark bg-transparent text-transparent checked:border-primary checked:bg-[image:--radio-dot-svg] focus:outline-none focus:ring-0 focus:ring-offset-0 checked:focus:border-primary" name="quiz1" type="radio"/>
+<div class="flex grow flex-col"><p class="text-text-light dark:text-text-dark text-sm font-medium leading-normal">x²/2</p></div>
+</label>
+<label class="flex items-center gap-4 rounded-lg border border-solid border-border-light dark:border-border-dark p-4 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 has-[:checked]:border-primary has-[:checked]:bg-primary/10 dark:has-[:checked]:bg-primary/20">
+<input class="h-5 w-5 border-2 border-border-light dark:border-border-dark bg-transparent text-transparent checked:border-primary checked:bg-[image:--radio-dot-svg] focus:outline-none focus:ring-0 focus:ring-offset-0 checked:focus:border-primary" name="quiz1" type="radio"/>
+<div class="flex grow flex-col"><p class="text-text-light dark:text-text-dark text-sm font-medium leading-normal">2</p></div>
+</label>
+</div>
+<div class="flex pt-4">
+<button class="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-12 px-5 flex-1 bg-primary text-slate-50 text-base font-bold leading-normal tracking-[0.015em] hover:bg-primary/90 disabled:bg-slate-300 dark:disabled:bg-slate-600 disabled:cursor-not-allowed">
+<span class="truncate">提交</span>
+</button>
+</div>
+</div>
+<!-- Quiz Card: After Submission -->
+<div class="flex flex-col gap-6 rounded-xl border border-border-light dark:border-border-dark bg-card-light dark:bg-card-dark p-6 sm:p-8 shadow-sm">
+<div class="flex flex-col gap-3">
+<div class="flex gap-6 justify-between"><p class="text-primary text-base font-medium leading-normal">微积分练习</p></div>
+<div class="rounded bg-slate-200 dark:bg-slate-700"><div class="h-2 rounded bg-primary" style="width: 40%;"></div></div>
+<p class="text-slate-500 dark:text-slate-400 text-sm font-normal leading-normal">Question 2 of 5</p>
+</div>
+<div class="border-t border-border-light dark:border-border-dark"></div>
+<h1 class="text-text-light dark:text-text-dark tracking-tight text-2xl md:text-3xl font-bold leading-tight text-left">What is the integral of 2x dx?</h1>
+<div class="flex flex-col gap-3" style="--radio-dot-svg: url('data:image/svg+xml,%3csvg viewBox=%270 0 16 16%27 fill=%27rgb(19,127,236)%27 xmlns=%27http://www.w3.org/2000/svg%27%3e%3ccircle cx=%278%27 cy=%278%27 r=%273%27/%3e%3c/svg%3e');">
+<!-- Correct Answer -->
+<label class="flex items-center gap-4 rounded-lg border-2 border-solid border-success bg-success/10 p-4 cursor-default">
+<input class="h-5 w-5 border-2 border-success bg-transparent text-transparent checked:border-success checked:bg-[image:--radio-dot-svg] focus:outline-none focus:ring-0 focus:ring-offset-0" disabled="" name="quiz2" type="radio"/>
+<div class="flex grow items-center justify-between">
+<p class="text-text-light dark:text-text-dark text-sm font-medium leading-normal">x² + C</p>
+<span class="material-symbols-outlined text-success">check_circle</span>
+</div>
+</label>
+<!-- Incorrect and Selected -->
+<label class="flex items-center gap-4 rounded-lg border-2 border-solid border-error bg-error/10 p-4 cursor-default">
+<input checked="" class="h-5 w-5 border-2 border-error bg-transparent text-transparent checked:border-error checked:bg-[image:--radio-dot-svg] focus:outline-none focus:ring-0 focus:ring-offset-0" disabled="" name="quiz2" type="radio"/>
+<div class="flex grow items-center justify-between">
+<p class="text-text-light dark:text-text-dark text-sm font-medium leading-normal">2x²</p>
+<span class="material-symbols-outlined text-error">cancel</span>
+</div>
+</label>
+<!-- Other options -->
+<label class="flex items-center gap-4 rounded-lg border border-solid border-border-light dark:border-border-dark p-4 cursor-default opacity-60">
+<input class="h-5 w-5 border-2 border-border-light dark:border-border-dark bg-transparent text-transparent focus:outline-none focus:ring-0 focus:ring-offset-0" disabled="" name="quiz2" type="radio"/>
+<div class="flex grow flex-col"><p class="text-text-light dark:text-text-dark text-sm font-medium leading-normal">2</p></div>
+</label>
+<label class="flex items-center gap-4 rounded-lg border border-solid border-border-light dark:border-border-dark p-4 cursor-default opacity-60">
+<input class="h-5 w-5 border-2 border-border-light dark:border-border-dark bg-transparent text-transparent focus:outline-none focus:ring-0 focus:ring-offset-0" disabled="" name="quiz2" type="radio"/>
+<div class="flex grow flex-col"><p class="text-text-light dark:text-text-dark text-sm font-medium leading-normal">x</p></div>
+</label>
+</div>
+<!-- Feedback Section -->
+<div class="flex flex-col gap-4 rounded-lg bg-slate-50 dark:bg-slate-800/50 p-4 mt-2">
+<h3 class="text-lg font-bold text-text-light dark:text-text-dark">Explanation</h3>
+<p class="text-sm text-slate-600 dark:text-slate-300">
+                                To find the integral of 2x, we use the power rule for integration, which states that the integral of xⁿ is (xⁿ⁺¹)/(n+1). In this case, n=1.
+                            </p>
+<p class="text-sm text-slate-600 dark:text-slate-300">
+                                Applying the rule: ∫2x dx = 2 * ∫x¹ dx = 2 * (x¹⁺¹ / (1+1)) + C = 2 * (x²/2) + C = x² + C.
+                            </p>
+<p class="text-sm text-slate-600 dark:text-slate-300">
+                                The 'C' represents the constant of integration, which is necessary for indefinite integrals.
+                            </p>
+</div>
+<div class="flex pt-4">
+<button class="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-12 px-5 flex-1 bg-primary text-slate-50 text-base font-bold leading-normal tracking-[0.015em] hover:bg-primary/90">
+<span class="truncate">再来一组练习</span>
+</button>
+</div>
+</div>
+</div>
+</main>
+</div>
+</div>
+</body></html>

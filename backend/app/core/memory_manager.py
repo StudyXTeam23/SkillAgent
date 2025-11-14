@@ -1,0 +1,339 @@
+"""
+Memory Manager - 记忆管理器
+
+负责管理用户的长期学习画像（UserLearningProfile）和短期会话上下文（SessionContext）。
+支持内存和 S3 两种存储方式。
+"""
+import logging
+import json
+from typing import Optional, Dict
+from datetime import datetime
+
+from ..models.memory import UserLearningProfile, SessionContext
+from ..models.intent import MemorySummary
+from ..config import settings
+
+logger = logging.getLogger(__name__)
+
+
+class MemoryManager:
+    """记忆管理器 - 管理用户学习画像和会话上下文"""
+    
+    def __init__(self, use_s3: Optional[bool] = None):
+        """
+        初始化 Memory Manager
+        
+        Args:
+            use_s3: 是否使用 S3 存储（None 时使用 settings 配置，False 强制内存，True 强制 S3）
+        """
+        self.use_s3 = use_s3 if use_s3 is not None else settings.USE_S3_STORAGE
+        
+        # 内存存储
+        self._user_profiles: Dict[str, UserLearningProfile] = {}
+        self._session_contexts: Dict[str, SessionContext] = {}
+        
+        logger.info(f"✅ MemoryManager initialized (S3: {self.use_s3})")
+    
+    # ============= User Learning Profile =============
+    
+    async def get_user_profile(self, user_id: str) -> UserLearningProfile:
+        """
+        获取用户学习画像
+        
+        Args:
+            user_id: 用户 ID
+        
+        Returns:
+            UserLearningProfile: 用户学习画像
+        """
+        if self.use_s3:
+            return await self._get_user_profile_from_s3(user_id)
+        
+        # 从内存获取，如果不存在则创建默认画像
+        if user_id not in self._user_profiles:
+            logger.info(f"📝 Creating new user profile for {user_id}")
+            self._user_profiles[user_id] = UserLearningProfile(
+                user_id=user_id,
+                mastery={},
+                preferences={},
+                history={
+                    "quiz_sessions": 0,
+                    "homework_help_count": 0,
+                    "topics_visited": []
+                }
+            )
+        
+        return self._user_profiles[user_id]
+    
+    async def update_user_profile(
+        self,
+        user_id: str,
+        profile: UserLearningProfile
+    ) -> UserLearningProfile:
+        """
+        更新用户学习画像
+        
+        Args:
+            user_id: 用户 ID
+            profile: 更新后的画像
+        
+        Returns:
+            UserLearningProfile: 更新后的画像
+        """
+        profile.updated_at = datetime.now()
+        
+        if self.use_s3:
+            return await self._update_user_profile_to_s3(user_id, profile)
+        
+        self._user_profiles[user_id] = profile
+        logger.info(f"✅ Updated user profile for {user_id}")
+        return profile
+    
+    # ============= Session Context =============
+    
+    async def get_session_context(self, session_id: str) -> SessionContext:
+        """
+        获取会话上下文
+        
+        Args:
+            session_id: 会话 ID
+        
+        Returns:
+            SessionContext: 会话上下文
+        """
+        if self.use_s3:
+            return await self._get_session_context_from_s3(session_id)
+        
+        # 从内存获取，如果不存在则创建默认上下文
+        if session_id not in self._session_contexts:
+            logger.info(f"📝 Creating new session context for {session_id}")
+            self._session_contexts[session_id] = SessionContext(
+                session_id=session_id,
+                current_topic=None,
+                recent_intents=[],
+                last_artifact=None,
+                last_user_message=""
+            )
+        
+        return self._session_contexts[session_id]
+    
+    async def update_session_context(
+        self,
+        session_id: str,
+        context: SessionContext
+    ) -> SessionContext:
+        """
+        更新会话上下文
+        
+        Args:
+            session_id: 会话 ID
+            context: 更新后的上下文
+        
+        Returns:
+            SessionContext: 更新后的上下文
+        """
+        context.updated_at = datetime.now()
+        
+        if self.use_s3:
+            return await self._update_session_context_to_s3(session_id, context)
+        
+        self._session_contexts[session_id] = context
+        logger.info(f"✅ Updated session context for {session_id}")
+        return context
+    
+    # ============= Memory Summary =============
+    
+    async def generate_memory_summary(
+        self,
+        user_id: str,
+        session_id: str
+    ) -> MemorySummary:
+        """
+        生成记忆摘要，用于 Intent Router
+        包含学习偏好分析！
+        
+        Args:
+            user_id: 用户 ID
+            session_id: 会话 ID
+        
+        Returns:
+            MemorySummary: 记忆摘要
+        """
+        # 获取用户画像和会话上下文
+        user_profile = await self.get_user_profile(user_id)
+        session_context = await self.get_session_context(session_id)
+        
+        # 分析用户的Skill使用偏好
+        skill_preference_hint = self._analyze_skill_preference(session_context.recent_intents)
+        
+        # 生成 topic_hint
+        topic_hint = session_context.current_topic
+        
+        # 生成 user_mastery_hint（如果有当前主题）
+        user_mastery_hint = None
+        if topic_hint and topic_hint in user_profile.mastery:
+            user_mastery_hint = user_profile.mastery[topic_hint]
+        
+        # 生成 recent_behavior 描述（包含偏好提示）
+        recent_behavior = self._generate_behavior_description(
+            user_profile,
+            session_context,
+            skill_preference_hint
+        )
+        
+        summary = MemorySummary(
+            topic_hint=topic_hint,
+            user_mastery_hint=user_mastery_hint,
+            recent_behavior=recent_behavior
+        )
+        
+        # 使用 INFO 级别日志，便于查看偏好是否生效
+        logger.info(f"📊 Generated memory summary: recent_behavior='{recent_behavior}'")
+        if skill_preference_hint:
+            logger.info(f"✨ User preference detected: {skill_preference_hint}")
+        
+        return summary
+    
+    def _generate_behavior_description(
+        self,
+        profile: UserLearningProfile,
+        context: SessionContext,
+        skill_preference_hint: str = ""
+    ) -> str:
+        """
+        生成用户行为描述
+        
+        Args:
+            profile: 用户画像
+            context: 会话上下文
+            skill_preference_hint: 学习偏好提示
+        
+        Returns:
+            str: 行为描述
+        """
+        behaviors = []
+        
+        # 添加学习偏好提示（如果有）
+        if skill_preference_hint:
+            behaviors.append(skill_preference_hint)
+        
+        # 最近的意图
+        if context.recent_intents:
+            last_intent = context.recent_intents[-1] if context.recent_intents else None
+            if last_intent == "quiz_request":
+                behaviors.append("刚做过练习题")
+            elif last_intent == "explain_request":
+                behaviors.append("刚看过概念讲解")
+            elif last_intent == "flashcard_request":
+                behaviors.append("刚学过闪卡")
+        
+        # 偏好
+        if profile.preferences.get("preferred_artifact"):
+            pref = profile.preferences["preferred_artifact"]
+            if pref == "quiz":
+                behaviors.append("偏好做练习")
+            elif pref == "explanation":
+                behaviors.append("偏好看讲解")
+        
+        # 历史统计
+        quiz_count = profile.history.get("quiz_sessions", 0)
+        if quiz_count > 0:
+            behaviors.append(f"已做过{quiz_count}次练习")
+        
+        return "；".join(behaviors) if behaviors else "新用户"
+    
+    def _analyze_skill_preference(self, recent_intents: list) -> str:
+        """
+        分析用户的Skill使用偏好
+        
+        Args:
+            recent_intents: 最近的意图列表
+        
+        Returns:
+            str: 偏好提示（如果有明显偏好）
+        """
+        if not recent_intents or len(recent_intents) < 2:  # 降低阈值：从3改为2
+            return ""
+        
+        # 统计各个意图的出现次数
+        intent_counts = {}
+        for intent in recent_intents[-10:]:  # 只看最近10次
+            intent_counts[intent] = intent_counts.get(intent, 0) + 1
+        
+        total = len(recent_intents[-10:])
+        
+        # 降低偏好触发阈值：从 >=60% 改为 >=50%
+        for intent, count in intent_counts.items():
+            preference_ratio = count / total
+            if preference_ratio >= 0.5:
+                intent_name_map = {
+                    "flashcard_request": "flashcards",
+                    "quiz_request": "quiz practice",
+                    "explain_request": "concept explanations",
+                    "learning_bundle": "complete learning packages"
+                }
+                intent_display = intent_name_map.get(intent, intent)
+                
+                # 增强偏好强度表达
+                if preference_ratio >= 0.75:
+                    strength = "Very strongly"
+                elif preference_ratio >= 0.60:
+                    strength = "Strongly"
+                else:
+                    strength = "Prefers"
+                
+                return f"[User Preference: {strength} prefers {intent_display} for learning ({int(preference_ratio*100)}% of recent activities)]"
+        
+        return ""
+    
+    # ============= S3 操作（占位符，实际使用时需要 boto3）=============
+    
+    async def _get_user_profile_from_s3(self, user_id: str) -> UserLearningProfile:
+        """从 S3 获取用户画像（占位符）"""
+        # 占位符：使用内存存储
+        if user_id not in self._user_profiles:
+            self._user_profiles[user_id] = UserLearningProfile(
+                user_id=user_id,
+                mastery={},
+                preferences={},
+                history={
+                    "quiz_sessions": 0,
+                    "homework_help_count": 0,
+                    "topics_visited": []
+                }
+            )
+        return self._user_profiles[user_id]
+    
+    async def _update_user_profile_to_s3(
+        self,
+        user_id: str,
+        profile: UserLearningProfile
+    ) -> UserLearningProfile:
+        """更新用户画像到 S3（占位符）"""
+        # 占位符：使用内存存储
+        self._user_profiles[user_id] = profile
+        return profile
+    
+    async def _get_session_context_from_s3(self, session_id: str) -> SessionContext:
+        """从 S3 获取会话上下文（占位符）"""
+        # 占位符：使用内存存储
+        if session_id not in self._session_contexts:
+            self._session_contexts[session_id] = SessionContext(
+                session_id=session_id,
+                current_topic=None,
+                recent_intents=[],
+                last_artifact=None,
+                last_user_message=""
+            )
+        return self._session_contexts[session_id]
+    
+    async def _update_session_context_to_s3(
+        self,
+        session_id: str,
+        context: SessionContext
+    ) -> SessionContext:
+        """更新会话上下文到 S3（占位符）"""
+        # 占位符：使用内存存储
+        self._session_contexts[session_id] = context
+        return context
+

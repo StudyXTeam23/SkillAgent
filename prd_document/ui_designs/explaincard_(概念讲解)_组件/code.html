@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>StudyX Skill Agent Demo - ExplainCard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet"/>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "primary": "#137fec",
+            "background-light": "#f6f7f8",
+            "background-dark": "#101922",
+            "card-light": "#ffffff",
+            "card-dark": "#172330",
+            "text-primary-light": "#1f2937",
+            "text-primary-dark": "#e5e7eb",
+            "text-secondary-light": "#6b7280",
+            "text-secondary-dark": "#9ca3af",
+            "border-light": "#e5e7eb",
+            "border-dark": "#374151"
+          },
+          fontFamily: {
+            "display": ["Lexend", "sans-serif"]
+          },
+          borderRadius: {
+            "DEFAULT": "0.25rem",
+            "lg": "0.5rem",
+            "xl": "0.75rem",
+            "full": "9999px"
+          },
+        },
+      },
+    }
+  </script>
+</head>
+<body class="font-display bg-background-light dark:bg-background-dark text-text-primary-light dark:text-text-primary-dark">
+<div class="relative flex min-h-screen w-full flex-col items-center justify-center p-4 sm:p-6 md:p-8">
+<!-- ExplainCard Component -->
+<div class="w-full max-w-4xl rounded-xl border border-border-light dark:border-border-dark bg-card-light dark:bg-card-dark shadow-sm">
+<div class="p-6 sm:p-8">
+<!-- Title Header -->
+<h1 class="text-2xl sm:text-3xl font-bold text-text-primary-light dark:text-text-primary-dark tracking-tight">The Chain Rule</h1>
+</div>
+<!-- Content Area -->
+<div class="px-6 sm:px-8 pb-6 text-base text-text-primary-light dark:text-text-primary-dark space-y-4">
+<p>In calculus, the <strong>chain rule</strong> is a formula to compute the derivative of a composite function. If you have a function <code class="bg-primary/10 text-primary p-1 rounded-md text-sm">f(x)</code> and another function <code class="bg-primary/10 text-primary p-1 rounded-md text-sm">g(x)</code>, the composite function can be written as <code class="bg-primary/10 text-primary p-1 rounded-md text-sm">f(g(x))</code>.</p>
+<p>The chain rule states that the derivative of this composite function is:</p>
+<div class="my-4 p-4 bg-background-light dark:bg-background-dark rounded-lg text-center font-mono text-lg">
+<span class="font-bold">d/dx [f(g(x))] = f'(g(x)) * g'(x)</span>
+</div>
+<p>This can be understood as "the derivative of the outer function (with the inner function left unchanged) times the derivative of the inner function."</p>
+</div>
+<!-- Divider Line -->
+<hr class="border-border-light dark:border-border-dark"/>
+<!-- Examples Section -->
+<div class="p-6 sm:p-8">
+<h2 class="text-xl sm:text-2xl font-semibold text-text-primary-light dark:text-text-primary-dark mb-5">Examples</h2>
+<div class="space-y-6">
+<!-- Example 1 -->
+<div class="flex flex-col gap-3">
+<h3 class="font-semibold text-text-primary-light dark:text-text-primary-dark"><span class="bg-primary text-white rounded-full h-6 w-6 inline-flex items-center justify-center text-sm mr-2">1</span>Find the derivative of <code class="bg-primary/10 text-primary p-1 rounded-md text-sm">y = (x² + 1)³</code></h3>
+<ul class="list-none space-y-2 pl-8 text-text-secondary-light dark:text-text-secondary-dark border-l-2 border-primary/50 ml-3">
+<li>Let <code class="bg-primary/10 text-primary p-1 rounded-md text-sm">u = x² + 1</code> (inner function), so <code class="bg-primary/10 text-primary p-1 rounded-md text-sm">y = u³</code> (outer function).</li>
+<li>Find the derivative of the outer function: <code class="bg-primary/10 text-primary p-1 rounded-md text-sm">dy/du = 3u²</code></li>
+<li>Find the derivative of the inner function: <code class="bg-primary/10 text-primary p-1 rounded-md text-sm">du/dx = 2x</code></li>
+<li>Apply the chain rule: <code class="bg-primary/10 text-primary p-1 rounded-md text-sm">dy/dx = (dy/du) * (du/dx)</code></li>
+<li>Substitute back: <code class="bg-primary/10 text-primary p-1 rounded-md text-sm">dy/dx = (3u²) * (2x) = 3(x² + 1)² * 2x</code></li>
+<li>Simplify: <code class="bg-primary/10 text-primary p-1 rounded-md text-sm font-bold">dy/dx = 6x(x² + 1)²</code></li>
+</ul>
+</div>
+<!-- Example 2 -->
+<div class="flex flex-col gap-3">
+<h3 class="font-semibold text-text-primary-light dark:text-text-primary-dark"><span class="bg-primary text-white rounded-full h-6 w-6 inline-flex items-center justify-center text-sm mr-2">2</span>Find the derivative of <code class="bg-primary/10 text-primary p-1 rounded-md text-sm">y = sin(3x)</code></h3>
+<ul class="list-none space-y-2 pl-8 text-text-secondary-light dark:text-text-secondary-dark border-l-2 border-primary/50 ml-3">
+<li>Let <code class="bg-primary/10 text-primary p-1 rounded-md text-sm">u = 3x</code> (inner function), so <code class="bg-primary/10 text-primary p-1 rounded-md text-sm">y = sin(u)</code> (outer function).</li>
+<li>Derivative of the outer function: <code class="bg-primary/10 text-primary p-1 rounded-md text-sm">dy/du = cos(u)</code></li>
+<li>Derivative of the inner function: <code class="bg-primary/10 text-primary p-1 rounded-md text-sm">du/dx = 3</code></li>
+<li>Apply the chain rule: <code class="bg-primary/10 text-primary p-1 rounded-md text-sm">dy/dx = cos(u) * 3</code></li>
+<li>Substitute back: <code class="bg-primary/10 text-primary p-1 rounded-md text-sm font-bold">dy/dx = 3cos(3x)</code></li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+<!-- End ExplainCard Component -->
+</div>
+</body></html>

@@ -1,0 +1,82 @@
+id: "explain_skill"
+display_name: "概念讲解"
+version: "1.0.0"
+intent_tags:
+  - "explain_request"
+  - "explain"
+  - "concept"
+  - "understand"
+
+input_schema:
+  type: "object"
+  properties:
+    concept_name:
+      type: "string"
+      description: "要讲解的概念名称"
+    subject:
+      type: "string"
+      description: "学科"
+    topic:
+      type: "string"
+      description: "具体主题"
+    memory_summary:
+      type: "string"
+      description: "用户学习画像摘要"
+    context:
+      type: "string"
+      description: "触发讲解的上下文"
+  required:
+    - "concept_name"
+    - "subject"
+
+output_schema:
+  type: "object"
+  properties:
+    concept:
+      type: "string"
+    subject:
+      type: "string"
+    intuition:
+      type: "string"
+    formal_definition:
+      type: "string"
+    why_it_matters:
+      type: "string"
+    examples:
+      type: "array"
+      items:
+        type: "object"
+    common_mistakes:
+      type: "array"
+      items:
+        type: "object"
+    related_concepts:
+      type: "array"
+      items:
+        type: "string"
+    difficulty:
+      type: "string"
+  required:
+    - "concept"
+    - "intuition"
+    - "formal_definition"
+
+models:
+  primary: "gemini-2.0-flash-exp"
+  fallback: "gemini-2.0-flash-exp"
+
+context:
+  need_user_memory: true
+  need_content_store: false
+  retrieve_top_k: 0
+
+cost:
+  model_class: "medium"
+  context_size: "small"
+  expected_rounds: 1
+
+composable: true
+dependencies: []
+
+prompt_file: "concept_explain_skill.txt"
+
