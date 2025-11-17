@@ -405,6 +405,107 @@
 - **意图可扩展**：Intent Router 支持动态添加新 intent 标签
 - **存储可替换**：当前使用内存存储，接口设计支持无缝切换到 Redis/MongoDB
 
+---
+
+## V2 进阶需求 (Advanced Requirements)
+
+以下需求基于 V1 完成后的架构进阶，旨在提升模糊问题处理、任务跳跃能力和并行执行效率。
+
+### Requirement 15: 意图分布与多候选识别
+
+**User Story:** 作为学生，当我提出模糊请求（如"帮我学习极限"）时，我希望系统不仅给出一个答案，还能推荐其他可能的学习方式，从而让我有更多选择。
+
+#### Acceptance Criteria
+
+1. WHEN Intent Router 解析模糊意图 THEN 系统 SHALL 返回意图分布（primary_intent + candidates list）
+2. WHEN candidates list 包含多个意图 THEN 每个候选 SHALL 包含 {intent: str, score: float}
+3. WHEN primary_intent score >= 0.7 THEN 系统 SHALL 直接执行该意图
+4. WHEN primary_intent score < 0.7 且 candidates 中有 score >= 0.6 的候选 THEN 系统 SHALL 执行 primary 并推荐其他候选
+5. WHEN Skill 执行完成 THEN Orchestrator SHALL 返回 suggested_next_skills（基于 candidates）
+6. WHEN 前端收到 suggested_next_skills THEN 界面 SHALL 显示推荐按钮（如"要不要出几道题练习？"）
+
+**实现要点：**
+- 修改 `IntentResult` 模型：添加 `candidates: list[IntentCandidate]` 字段
+- 更新 Intent Router prompt：返回 top3 intents + scores
+- Orchestrator 根据候选意图生成 suggested_next_skills
+
+### Requirement 16: 上下文聚合与统一管理
+
+**User Story:** 作为系统开发者，我希望有一个统一的 ContextCollector 模块聚合所有上下文信息（用户画像、会话历史、上传文件等），从而让 Intent Router 和 Skill Orchestrator 能访问完整的上下文。
+
+#### Acceptance Criteria
+
+1. WHEN Agent API 收到请求 THEN ContextCollector SHALL 聚合以下信息：
+   - UserLearningProfile（长期记忆）
+   - SessionContext（短期记忆）
+   - recent_turns（最近 N 条对话）
+   - uploads_summary（上传文件摘要，未来扩展）
+2. WHEN ContextCollector 完成聚合 THEN 输出 SHALL 为 AnalysisContext 对象
+3. WHEN IntentRouter 解析意图 THEN 它 SHALL 接收 AnalysisContext 作为输入
+4. WHEN Skill Orchestrator 执行 THEN 它 SHALL 接收 AnalysisContext 作为输入
+5. WHEN 某些上下文信息缺失（如新用户无历史）THEN ContextCollector SHALL 返回空值而不报错
+
+**实现要点：**
+- 新建 `backend/app/core/context_collector.py`
+- 定义 `AnalysisContext` dataclass
+- 在 `agent.py` 中调用顺序：ContextCollector → IntentRouter → Orchestrator
+
+### Requirement 17: Planner 大脑层与任务跳跃
+
+**User Story:** 作为学生，我希望在学习过程中能自然地跳转任务（如"做题 → 讲解 → 笔记 → 再做题"），而系统能理解我的意图并记住上下文，从而提供连贯的学习体验。
+
+#### Acceptance Criteria
+
+1. WHEN 系统需要决策下一步 Skill THEN Planner SHALL 生成 ExecutionPlan
+2. WHEN ExecutionPlan 生成 THEN 它 SHALL 包含：
+   - current_skill: 当前要执行的 Skill
+   - pipeline_skills: 可选的连续执行 Skill 列表（如先 Explain 再 Quiz）
+   - suggested_next_skills: 推荐的后续 Skill（供前端显示）
+3. WHEN Skill 执行完成 THEN Memory Manager SHALL 接收 SkillEvent 更新状态
+4. WHEN SkillEvent 被记录 THEN 它 SHALL 包含：{skill_id, intent, topic, artifact_type, artifact_id}
+5. WHEN 用户提出关联请求（如"第2题我不会，讲一下"）THEN Planner SHALL 从 Memory 中获取上一轮的 artifact（quiz_set），并构建 ExplainSkill 参数
+6. WHEN Skills 之间需要信息传递 THEN 只能通过 Memory + Planner，不允许 Skill 之间直接调用
+
+**实现要点：**
+- 新建 `backend/app/core/planner.py`，定义 `Planner` 类
+- 定义 `ExecutionPlan` 和 `SkillEvent` Pydantic 模型
+- 在 MemoryManager 中添加 `record_skill_event()` 方法
+- 示例 Demo：连续对话"给我3道题" → "第2题讲一下" → "整理成笔记"
+
+### Requirement 18: 并行执行与 Manus 学习包模式
+
+**User Story:** 作为学生，当我上传一段课程笔记或讲座转写时，我希望系统能一次性生成多种学习材料（笔记、练习题、闪卡），而不是我反复请求多次，从而节省时间和提高效率。
+
+#### Acceptance Criteria
+
+1. WHEN 用户输入长文本或上传文件 THEN 系统 SHALL 首先调用 ContentAnalysisSkill 解析内容
+2. WHEN ContentAnalysisSkill 返回结果 THEN 输出 SHALL 包含：
+   - subject: 学科
+   - topic: 主题
+   - knowledge_points: 知识点列表
+   - chapter_structure: 章节结构（可选）
+   - key_examples: 重要示例
+3. WHEN ContentAnalysis 完成 THEN Orchestrator SHALL 根据 Plan 并行执行多个 Skill
+4. WHEN 并行执行多个 Skill THEN Orchestrator SHALL 使用 asyncio.gather() 并发调用
+5. WHEN 所有 Skill 完成 THEN 结果 SHALL 汇总为一个 LearningBundle artifact
+6. WHEN 前端收到 LearningBundle THEN 界面 SHALL 显示增强的 LearningBundleCard，内嵌多个子卡片
+7. WHEN LearningBundleCard 显示 THEN 它 SHALL 包含：
+   - 学习路线提示（如"先看笔记，再做题，再复习卡片"）
+   - 展开/折叠的子卡片（QuizCard, ExplainCard, FlashcardCard）
+
+**实现要点：**
+- 新增 `ContentAnalysisSkill`：配置文件 + prompt + handler
+- 在 SkillOrchestrator 中添加 `execute_skills_parallel()` 方法
+- 修改 LearningBundleSkill 支持吃多个子产物汇总
+- 前端新增 `LearningBundleCard` 组件，支持嵌套渲染
+
+**Demo 场景：**
+- 输入："这是我今天的微积分课笔记：[长文本]，帮我生成学习材料"
+- 流程：ContentAnalysisSkill → [NotesSkill, QuizSkill, FlashcardSkill] 并行 → LearningBundleSkill 汇总
+- 输出：完整学习包卡片，包含笔记、5道练习题、8张闪卡
+
+---
+
 ## Out of Scope（MVP 不包含）
 
 以下功能在 demo 阶段不实现，但架构支持后续扩展：
@@ -424,7 +525,7 @@
 
 ## Success Metrics
 
-Demo 成功的标准：
+### V1 Demo 成功标准 (已完成)
 
 1. ✅ 用户能在一个界面完成"练习题 → 讲解 → 再练习"的完整学习流程
 2. ✅ Intent Router 对明确意图的识别准确率 > 85%
@@ -432,7 +533,17 @@ Demo 成功的标准：
 4. ✅ 系统能记住用户在会话中的主题切换
 5. ✅ 代码结构清晰，新增一个 Skill 只需 < 50 行代码
 6. ✅ 演示视频能展示核心价值：从工具箱到智能助手的体验提升
-7. 🆕 用户能注册/登录，退出后重新登录时自动加载历史偏好和聊天记录
-8. 🆕 系统能根据用户历史行为（如连续3次使用闪卡）持久化偏好，影响后续意图识别
-9. 🆕 多用户场景：不同用户的数据完全隔离，互不影响
+7. ✅ 用户能注册/登录，退出后重新登录时自动加载历史偏好和聊天记录
+8. ✅ 系统能根据用户历史行为（如连续3次使用闪卡）持久化偏好，影响后续意图识别
+9. ✅ 多用户场景：不同用户的数据完全隔离，互不影响
+
+### V2 进阶成功标准 (待实现)
+
+10. 🆕 **模糊意图处理**：用户输入"帮我学习极限"时，系统能返回意图分布（explain 0.7, quiz 0.6, flashcard 0.4），执行主意图并推荐其他选项
+11. 🆕 **任务跳跃能力**：用户能连续对话"给我3道题" → "第2题我不会" → "整理成笔记"，系统通过 Memory 记住上下文并正确执行
+12. 🆕 **并行执行效率**：用户上传长文本后，系统能同时生成笔记、练习题、闪卡，整体响应时间 < 10秒（比顺序执行节省 40-60% 时间）
+13. 🆕 **Planner 决策准确性**：Planner 能根据用户偏好和意图分布生成合理的 ExecutionPlan，包含当前 Skill 和建议的后续 Skills
+14. 🆕 **推荐系统有效性**：前端显示的"推荐下一步"按钮点击率 > 30%，证明推荐的相关性
+15. 🆕 **学习包完整性**：Manus 模式生成的学习包包含至少3种类型的学习材料（笔记、练习题、闪卡），且内容连贯
+16. 🆕 **Token 成本优化**：并行执行模式相比顺序调用多个 Skill，token 消耗减少 40-60%
 

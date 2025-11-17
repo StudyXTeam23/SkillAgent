@@ -1630,6 +1630,539 @@ CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
    - 后端 API：http://localhost:8000
    - API 文档：http://localhost:8000/docs
 
+---
+
+## V2 Architecture Extensions (进阶架构设计)
+
+基于 V1 已实现的核心架构，V2 在不推翻原有设计的前提下，增强以下三个核心能力：模糊问题处理、任务跳跃、并行执行。
+
+### V2 Architecture Overview
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                        User Input                                 │
+│                  "帮我学习极限" (模糊意图)                          │
+└─────────────────────────┬────────────────────────────────────────┘
+                          │
+                          ▼
+┌──────────────────────────────────────────────────────────────────┐
+│                    ContextCollector                               │
+│  聚合上下文：UserProfile + SessionContext + RecentTurns          │
+└─────────────────────────┬────────────────────────────────────────┘
+                          │
+                          ▼ AnalysisContext
+┌──────────────────────────────────────────────────────────────────┐
+│                    Intent Router (扩展)                           │
+│  返回意图分布：primary_intent + candidates[]                       │
+│  Example: {explain: 0.7, quiz: 0.6, flashcard: 0.4}             │
+└─────────────────────────┬────────────────────────────────────────┘
+                          │
+                          ▼ IntentResult (with candidates)
+┌──────────────────────────────────────────────────────────────────┐
+│                        Planner (新增)                             │
+│  大脑层：生成 ExecutionPlan                                        │
+│  - current_skill: 当前执行的 Skill                                │
+│  - pipeline_skills: 可选的连续执行 Skill                          │
+│  - suggested_next_skills: 推荐的后续 Skill                        │
+└─────────────────────────┬────────────────────────────────────────┘
+                          │
+                          ▼ ExecutionPlan
+┌──────────────────────────────────────────────────────────────────┐
+│                 Skill Orchestrator (扩展)                         │
+│  执行模式：                                                        │
+│  1. 单一执行：execute_single(skill, params)                       │
+│  2. 串行执行：execute_pipeline([skill1, skill2])                  │
+│  3. 并行执行：execute_parallel([skill1, skill2, skill3])          │
+└─────────────────────────┬────────────────────────────────────────┘
+                          │
+        ┌─────────────────┼─────────────────┬─────────────────┐
+        │                 │                 │                 │
+        ▼                 ▼                 ▼                 ▼
+  ┌──────────┐   ┌──────────────┐   ┌──────────┐   ┌──────────┐
+  │  Explain │   │    Quiz      │   │Flashcard │   │  Notes   │
+  │  Skill   │   │    Skill     │   │  Skill   │   │  Skill   │
+  └──────────┘   └──────────────┘   └──────────┘   └──────────┘
+        │                 │                 │                 │
+        └─────────────────┴─────────────────┴─────────────────┘
+                          │
+                          ▼ SkillEvent (for each Skill)
+┌──────────────────────────────────────────────────────────────────┐
+│                  Memory Manager (扩展)                            │
+│  接收 SkillEvent，更新：                                           │
+│  - UserLearningProfile (mastery_map, preferred_artifact)         │
+│  - SessionContext (current_topic, last_artifact)                 │
+│  支持任务跳跃的上下文传递                                           │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+### New Component: ContextCollector
+
+**文件路径：** `backend/app/core/context_collector.py`
+
+**职责：** 聚合所有可用的上下文信息，输出统一的 `AnalysisContext` 供后续模块使用。
+
+#### Data Model
+
+```python
+from dataclasses import dataclass
+from typing import Optional
+from app.models.memory import UserLearningProfile, SessionContext
+
+@dataclass
+class AnalysisContext:
+    """
+    统一的分析上下文，包含所有可用的用户信息和会话状态
+    """
+    user_id: str
+    session_id: str
+    user_profile: Optional[UserLearningProfile]
+    session_context: Optional[SessionContext]
+    recent_turns: list[str]  # 最近 N 条对话（用户消息）
+    uploads_summary: Optional[str]  # 未来扩展：上传文件的摘要
+    
+    def to_memory_summary(self) -> str:
+        """
+        生成简短的记忆摘要供 Prompt 使用（<= 100 tokens）
+        """
+        parts = []
+        
+        if self.user_profile and self.user_profile.mastery_map:
+            parts.append(f"Mastery: {self.user_profile.mastery_map}")
+        
+        if self.session_context and self.session_context.current_topic:
+            parts.append(f"Current Topic: {self.session_context.current_topic}")
+        
+        if self.recent_turns:
+            parts.append(f"Recent: {', '.join(self.recent_turns[-3:])}")
+        
+        return " | ".join(parts) if parts else "New user, no history"
+```
+
+#### Implementation
+
+```python
+class ContextCollector:
+    """
+    上下文聚合器，负责收集所有可用的上下文信息
+    """
+    
+    def __init__(self, memory_manager: MemoryManager):
+        self.memory_manager = memory_manager
+    
+    async def collect(
+        self, 
+        user_id: str, 
+        session_id: str,
+        recent_limit: int = 5
+    ) -> AnalysisContext:
+        """
+        聚合分析上下文
+        
+        Args:
+            user_id: 用户 ID
+            session_id: 会话 ID
+            recent_limit: 最近对话的数量限制
+        
+        Returns:
+            AnalysisContext: 统一的分析上下文
+        """
+        # 获取用户画像（长期记忆）
+        user_profile = await self.memory_manager.get_profile(user_id)
+        
+        # 获取会话上下文（短期记忆）
+        session_context = await self.memory_manager.get_session(user_id, session_id)
+        
+        # 获取最近的对话记录
+        recent_turns = await self.memory_manager.get_recent_messages(
+            user_id, session_id, limit=recent_limit
+        )
+        
+        # 未来扩展：获取上传文件摘要
+        uploads_summary = None
+        
+        return AnalysisContext(
+            user_id=user_id,
+            session_id=session_id,
+            user_profile=user_profile,
+            session_context=session_context,
+            recent_turns=[msg.content for msg in recent_turns if msg.role == "user"],
+            uploads_summary=uploads_summary
+        )
+```
+
+### New Component: Planner
+
+**文件路径：** `backend/app/core/planner.py`
+
+**职责：** 作为"大脑"层，根据意图分布和用户偏好生成执行计划（ExecutionPlan）。
+
+#### Data Model
+
+```python
+from pydantic import BaseModel, Field
+from typing import Optional, List
+
+class ExecutionPlan(BaseModel):
+    """
+    技能执行计划
+    """
+    current_skill: str = Field(..., description="当前要执行的主 Skill")
+    pipeline_skills: List[str] = Field(default_factory=list, description="可选的连续执行 Skill 列表")
+    suggested_next_skills: List[dict] = Field(
+        default_factory=list, 
+        description="推荐的后续 Skills（供前端显示）"
+    )
+    reasoning: Optional[str] = Field(None, description="决策理由")
+
+class SkillEvent(BaseModel):
+    """
+    技能执行事件，用于记录到 Memory
+    """
+    skill_id: str
+    intent: str
+    topic: Optional[str]
+    artifact_type: str
+    artifact_id: Optional[str]
+    timestamp: str
+```
+
+#### Implementation
+
+```python
+class Planner:
+    """
+    决策大脑，根据意图分布和用户偏好生成执行计划
+    """
+    
+    def __init__(self, skill_registry: SkillRegistry):
+        self.registry = skill_registry
+    
+    async def make_plan(
+        self, 
+        intent_result: IntentResult,
+        analysis_context: AnalysisContext
+    ) -> ExecutionPlan:
+        """
+        生成执行计划
+        
+        Args:
+            intent_result: 意图识别结果（包含 primary_intent + candidates）
+            analysis_context: 分析上下文
+        
+        Returns:
+            ExecutionPlan: 执行计划
+        """
+        # 1. 选择主 Skill（基于 primary_intent）
+        current_skill = self._select_primary_skill(intent_result.primary_intent)
+        
+        # 2. 根据用户偏好决定是否需要 pipeline
+        pipeline_skills = self._build_pipeline(intent_result, analysis_context)
+        
+        # 3. 根据 candidates 生成后续推荐
+        suggested_next_skills = self._suggest_followup(
+            intent_result.candidates, 
+            analysis_context
+        )
+        
+        # 4. 生成决策理由
+        reasoning = self._explain_decision(
+            current_skill, 
+            intent_result.confidence, 
+            analysis_context.user_profile
+        )
+        
+        return ExecutionPlan(
+            current_skill=current_skill,
+            pipeline_skills=pipeline_skills,
+            suggested_next_skills=suggested_next_skills,
+            reasoning=reasoning
+        )
+    
+    def _select_primary_skill(self, primary_intent: str) -> str:
+        """根据 primary_intent 选择主 Skill"""
+        # 从 Registry 查找匹配的 Skill
+        skills = self.registry.find_by_intent(primary_intent)
+        return skills[0].id if skills else "explain_skill"  # fallback
+    
+    def _build_pipeline(
+        self, 
+        intent_result: IntentResult, 
+        context: AnalysisContext
+    ) -> List[str]:
+        """
+        构建 pipeline（连续执行的 Skills）
+        
+        Example:
+        - 用户强偏好"先讲解再练习" → pipeline = ["explain_skill", "quiz_skill"]
+        - 用户无明显偏好 → pipeline = []
+        """
+        pipeline = []
+        
+        # 检查用户是否有"explain before quiz"的偏好
+        if context.user_profile:
+            if "explain_then_quiz" in context.user_profile.preferences:
+                if intent_result.primary_intent == "quiz":
+                    pipeline = ["explain_skill", "quiz_skill"]
+        
+        return pipeline
+    
+    def _suggest_followup(
+        self, 
+        candidates: List[IntentCandidate], 
+        context: AnalysisContext
+    ) -> List[dict]:
+        """
+        根据候选意图生成后续推荐
+        
+        Example:
+        - candidates = [{intent: "quiz", score: 0.6}, {intent: "flashcard", score: 0.5}]
+        - suggested_next_skills = [
+            {"skill_id": "quiz_skill", "label": "要不要出几道题练习？", "score": 0.6},
+            {"skill_id": "flashcard_skill", "label": "或者生成一些闪卡？", "score": 0.5}
+          ]
+        """
+        suggestions = []
+        
+        for candidate in candidates:
+            if candidate.score >= 0.5:  # 只推荐 score >= 0.5 的候选
+                skill = self._select_primary_skill(candidate.intent)
+                suggestions.append({
+                    "skill_id": skill,
+                    "label": self._generate_label(candidate.intent),
+                    "score": candidate.score
+                })
+        
+        return suggestions[:3]  # 最多推荐 3 个
+    
+    def _generate_label(self, intent: str) -> str:
+        """为推荐按钮生成友好的标签"""
+        labels = {
+            "quiz": "要不要出几道题练习？",
+            "explain": "需要详细讲解吗？",
+            "flashcard": "或者生成一些闪卡？",
+            "notes": "整理成笔记？"
+        }
+        return labels.get(intent, "尝试这个？")
+    
+    def _explain_decision(
+        self, 
+        skill_id: str, 
+        confidence: float, 
+        profile: Optional[UserLearningProfile]
+    ) -> str:
+        """生成决策理由"""
+        reasons = [f"Selected {skill_id} (confidence: {confidence:.2f})"]
+        
+        if profile and profile.preferred_artifact:
+            reasons.append(f"User prefers {profile.preferred_artifact}")
+        
+        return " | ".join(reasons)
+```
+
+### Extended Component: SkillOrchestrator
+
+**扩展功能：** 支持并行执行多个 Skills
+
+#### New Method: execute_skills_parallel
+
+```python
+import asyncio
+from typing import List, Dict
+
+class SkillOrchestrator:
+    # ... existing methods ...
+    
+    async def execute_skills_parallel(
+        self, 
+        skills: List[str],
+        shared_context: AnalysisContext
+    ) -> List[Dict]:
+        """
+        并行执行多个 Skill
+        
+        Args:
+            skills: 要并行执行的 Skill ID 列表
+            shared_context: 共享的分析上下文
+        
+        Returns:
+            List[Dict]: 每个 Skill 的执行结果
+        """
+        tasks = []
+        
+        for skill_id in skills:
+            # 为每个 Skill 创建异步任务
+            task = self._execute_single_skill(skill_id, shared_context)
+            tasks.append(task)
+        
+        # 使用 asyncio.gather 并行执行
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # 处理结果和异常
+        processed_results = []
+        for skill_id, result in zip(skills, results):
+            if isinstance(result, Exception):
+                logger.error(f"Skill {skill_id} failed: {result}")
+                processed_results.append({
+                    "skill_id": skill_id,
+                    "error": str(result),
+                    "status": "failed"
+                })
+            else:
+                processed_results.append({
+                    "skill_id": skill_id,
+                    "content": result,
+                    "status": "success"
+                })
+        
+        return processed_results
+    
+    async def _execute_single_skill(
+        self, 
+        skill_id: str, 
+        context: AnalysisContext
+    ) -> Dict:
+        """
+        执行单个 Skill
+        """
+        # 获取 Skill 定义
+        skill_def = self.registry.get_skill(skill_id)
+        
+        # 构建参数
+        params = self._build_skill_params(skill_def, context)
+        
+        # 执行 Skill
+        result = await skill_def.handler.execute(params, context)
+        
+        return result
+```
+
+### New Skill: ContentAnalysisSkill
+
+**文件路径：** 
+- `backend/skills_config/content_analysis_skill.yaml`
+- `backend/app/prompts/content_analysis_skill.txt`
+
+**职责：** 对长文本/课程内容做一次统一解析，输出结构化的知识点和章节信息。
+
+#### Configuration (YAML)
+
+```yaml
+id: content_analysis_skill
+display_name: 内容分析
+version: "1.0.0"
+intent_tags:
+  - content_analysis
+  - content_parse
+
+input_schema:
+  type: object
+  properties:
+    content:
+      type: string
+      description: "要分析的文本内容（课程笔记、讲座转写等）"
+    subject:
+      type: string
+      description: "学科（可选）"
+  required:
+    - content
+
+output_schema:
+  type: object
+  properties:
+    analysis_id:
+      type: string
+    subject:
+      type: string
+    topic:
+      type: string
+    knowledge_points:
+      type: array
+      items:
+        type: object
+    chapter_structure:
+      type: object
+    key_examples:
+      type: array
+    summary:
+      type: string
+
+models:
+  primary: "gemini-2.0-flash-exp"
+  fallback: "gemini-2.0-flash-exp"
+
+context:
+  need_user_memory: false
+  need_content_store: false
+
+prompt_file: "content_analysis_skill.txt"
+max_tokens: 3000
+```
+
+### Integration Flow: Manus Learning Bundle
+
+**场景：** 用户上传一段课程笔记，系统生成完整学习包
+
+```python
+# In agent.py
+async def agent_chat_manus_mode(request: AgentChatRequest):
+    # 1. 收集上下文
+    context = await context_collector.collect(request.user_id, request.session_id)
+    
+    # 2. 意图识别
+    intent_result = await intent_router.parse(request.message, context)
+    
+    # 3. 如果是长文本输入，使用 Manus 模式
+    if len(request.message) > 500:  # 长文本阈值
+        # Step 1: 内容分析（串行）
+        analysis_result = await orchestrator.execute_single(
+            "content_analysis_skill", 
+            {"content": request.message}
+        )
+        
+        # Step 2: 根据分析结果，并行生成多个学习材料
+        parallel_skills = ["notes_skill", "quiz_skill", "flashcard_skill"]
+        parallel_results = await orchestrator.execute_skills_parallel(
+            parallel_skills, 
+            context
+        )
+        
+        # Step 3: 汇总为学习包
+        bundle_result = await learning_bundle_skill.assemble(
+            analysis=analysis_result,
+            components=parallel_results
+        )
+        
+        return AgentChatResponse(
+            content_type="learning_bundle",
+            response_content=bundle_result
+        )
+    else:
+        # 正常的单一 Skill 模式
+        plan = await planner.make_plan(intent_result, context)
+        result = await orchestrator.execute_plan(plan)
+        return result
+```
+
+### Summary of V2 Enhancements
+
+| 组件 | V1 功能 | V2 扩展 |
+|------|---------|---------|
+| **Intent Router** | 返回单一意图 | 返回意图分布（primary + candidates） |
+| **Memory Manager** | 记录用户画像和会话 | 接收 SkillEvent，支持任务跳跃 |
+| **Skill Orchestrator** | 单一 Skill 执行 | 支持并行执行 + pipeline 模式 |
+| **Skill Registry** | 管理 5 个 Skills | 新增 ContentAnalysis + Notes Skills |
+| **新增 ContextCollector** | - | 统一聚合所有上下文信息 |
+| **新增 Planner** | - | 大脑层，生成 ExecutionPlan 和推荐 |
+
+### Benefits
+
+1. **模糊问题处理能力提升**：用户说"帮我学习极限"时，系统不仅执行 explain，还推荐"要不要出几道题？"
+2. **任务跳跃能力提升**：支持"做题 → 讲解 → 笔记"等自然跳转，通过 Memory 传递上下文
+3. **Token 成本优化**：Manus 模式下，一次 ContentAnalysis，多 Skill 复用，节省 40-60% token
+4. **用户体验提升**：从"被动响应"升级为"主动推荐"，从"单次交互"升级为"连续对话"
+
+---
+
 ## Future Extensibility
 
 ### 1. 多技能 Pipeline（BundleSkill）
@@ -1692,14 +2225,26 @@ class CostTracker:
 
 ## Summary
 
+### V1 架构（已实现）
+
 本设计文档完整描述了 Skill Agent Demo 的技术架构，涵盖：
 
 ✅ **4 个核心模块**：Intent Router、Memory Manager、Skill Orchestrator、Skill Registry  
-✅ **2 个示例技能**：QuizSkill、ExplainSkill  
+✅ **5 个示例技能**：QuizSkill、ExplainSkill、FlashcardSkill、LearningBundleSkill、MindMapSkill  
 ✅ **完整的 API 设计**：RESTful 接口 + Pydantic 模型  
 ✅ **前端架构**：React + Context/Reducer + TypeScript  
 ✅ **错误处理策略**：友好的用户提示 + 完善的 fallback  
 ✅ **测试策略**：单元测试 + 集成测试 + E2E 测试  
+✅ **用户认证**：JWT + SQLite 持久化  
 
-下一步将创建 **Tasks 文档**，将设计拆解为可执行的开发任务。
+### V2 进阶架构（设计完成，待实现）
+
+在不推翻 V1 架构的前提下，V2 新增以下组件和功能：
+
+🆕 **2 个新组件**：ContextCollector、Planner  
+🆕 **3 个核心扩展**：Intent Router (意图分布)、Skill Orchestrator (并行执行)、Memory Manager (SkillEvent)  
+🆕 **2 个新技能**：ContentAnalysisSkill、NotesSkill  
+🆕 **3 个核心能力**：模糊问题处理、任务跳跃、并行执行 & Manus 模式  
+
+下一步将创建 **Tasks 文档 (Phase 8)**，将 V2 设计拆解为可执行的开发任务。
 

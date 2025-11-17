@@ -656,9 +656,202 @@
   - _Requirements: 14_
   - _Prompt: Role: QA Engineer with end-to-end testing expertise | Task: Perform comprehensive authentication flow testing following requirement 14, testing: (1) register new user "alice" → auto-login → see chat interface with username, (2) send messages → logout → login as "alice" → see previous messages, (3) register second user "bob" → send different messages → verify alice and bob have separate chat histories, (4) simulate token expiration (modify localStorage to expired token) → any API call redirects to login, (5) login → refresh page → verify still logged in and messages persist, (6) test preference persistence (连续3次闪卡 → logout → login → "化学反应" → verify quiz preference loaded), document any bugs with screenshots | Restrictions: Test with at least 2 users, verify complete data isolation, check all edge cases, test on fresh browser (clear storage), document test steps and results | Success: Complete auth flow works smoothly, data persists correctly, multi-user isolation works, token expiration is handled, page refresh maintains auth state, preferences are loaded from DB_
 
+## Phase 8: V2 进阶功能 (Advanced Features) 🆕
+
+**注意：** Phase 8 基于 V1 完成的架构，是架构的进阶版本，旨在提升模糊问题处理、任务跳跃和并行执行能力。
+
+**预估时间：** 5-7 天（全职开发）
+
+### Backend: 新增核心组件
+
+- [ ] 8.1. 实现 ContextCollector 模块
+  - Files:
+    - `backend/app/core/context_collector.py`
+    - `backend/app/models/context.py`
+  - Create AnalysisContext dataclass
+  - Implement ContextCollector.collect() method
+  - Aggregate user_profile, session_context, recent_turns
+  - Add to_memory_summary() method for Prompt generation
+  - Purpose: 统一聚合所有上下文信息
+  - _Leverage: MemoryManager from Phase 2_
+  - _Requirements: 16 (上下文聚合与统一管理)_
+  - _Prompt: Role: Backend Developer specializing in context management | Task: Implement ContextCollector following requirement 16, creating: (1) AnalysisContext dataclass with user_id, session_id, user_profile, session_context, recent_turns, uploads_summary fields, (2) ContextCollector class with collect() method aggregating all context from MemoryManager, (3) to_memory_summary() method generating concise summary (<= 100 tokens) for Prompts, (4) handle missing context gracefully (new users have empty history) | Restrictions: Must use dataclass for AnalysisContext, aggregate context efficiently, limit recent_turns to 5 messages, handle None values without errors | Success: ContextCollector aggregates all context correctly, to_memory_summary() generates concise output, new users handled gracefully, no performance impact_
+
+- [ ] 8.2. 扩展 IntentRouter 支持意图分布
+  - Files:
+    - `backend/app/core/intent_router.py`
+    - `backend/app/models/intent.py`
+    - `backend/app/prompts/intent_router.txt`
+  - Modify IntentResult to include candidates: list[IntentCandidate]
+  - Create IntentCandidate model {intent: str, score: float}
+  - Update Intent Router prompt to return top3 intents + scores
+  - Modify parse() method to extract candidates
+  - Purpose: 支持意图分布输出，提供多候选推荐
+  - _Leverage: existing IntentRouter from Phase 2_
+  - _Requirements: 15 (意图分布与多候选识别)_
+  - _Prompt: Role: Backend Developer with LLM integration expertise | Task: Extend IntentRouter following requirement 15, modifying: (1) IntentResult model to add candidates: List[IntentCandidate], (2) IntentCandidate model with intent and score fields, (3) intent_router.txt prompt to return JSON with primary_intent and candidates (top3 with scores), (4) parse() method to extract candidates from LLM response, (5) ensure backward compatibility (if candidates empty, use empty list) | Restrictions: Must maintain existing API compatibility, validate score range 0.0-1.0, sort candidates by score descending, handle LLM responses with varying formats | Success: IntentRouter returns intent distribution correctly, candidates are properly ranked, prompt generates valid JSON, backward compatibility maintained_
+
+- [ ] 8.3. 实现 Planner 大脑层
+  - Files:
+    - `backend/app/core/planner.py`
+    - `backend/app/models/plan.py`
+  - Create ExecutionPlan model
+  - Create SkillEvent model
+  - Implement Planner.make_plan() method
+  - Add _build_pipeline() for连续执行
+  - Add _suggest_followup() for推荐下一步
+  - Purpose: 决策大脑，生成执行计划和后续推荐
+  - _Leverage: SkillRegistry from Phase 2, IntentResult from task 8.2_
+  - _Requirements: 17 (Planner 大脑层与任务跳跃)_
+  - _Prompt: Role: Backend Architect specializing in decision systems | Task: Implement Planner following requirement 17, creating: (1) ExecutionPlan model with current_skill, pipeline_skills, suggested_next_skills, reasoning fields, (2) SkillEvent model with skill_id, intent, topic, artifact_type, artifact_id, timestamp, (3) Planner class with make_plan() accepting IntentResult and AnalysisContext, (4) _select_primary_skill() choosing best skill from primary_intent, (5) _build_pipeline() deciding连续执行 based on user preferences, (6) _suggest_followup() generating推荐列表 from candidates (label, score), (7) _generate_label() creating friendly button text | Restrictions: Must consider user preferences in decisions, suggest only candidates with score >= 0.5, limit suggestions to top3, generate reasoning for transparency | Success: Planner generates valid ExecutionPlan, suggestions are relevant and ranked, pipeline logic works correctly, reasoning is informative_
+
+- [ ] 8.4. 扩展 SkillOrchestrator 支持并行执行
+  - Files:
+    - `backend/app/core/skill_orchestrator.py`
+  - Add execute_skills_parallel() method
+  - Add _execute_single_skill() helper
+  - Use asyncio.gather() for concurrent execution
+  - Handle exceptions gracefully (return_exceptions=True)
+  - Purpose: 支持并行执行多个 Skills，提高效率
+  - _Leverage: existing SkillOrchestrator from Phase 2, asyncio_
+  - _Requirements: 18 (并行执行与 Manus 学习包模式)_
+  - _Prompt: Role: Backend Developer with async/concurrency expertise | Task: Extend SkillOrchestrator following requirement 18, adding: (1) execute_skills_parallel(skills: List[str], shared_context: AnalysisContext) method, (2) _execute_single_skill(skill_id, context) helper method, (3) use asyncio.gather(*tasks, return_exceptions=True) for parallel execution, (4) handle exceptions by returning {skill_id, error, status: "failed"}, (5) return list of results with {skill_id, content, status: "success"}, (6) ensure shared_context is safely accessed concurrently | Restrictions: Must handle partial failures gracefully, log all skill executions, ensure thread-safety, limit concurrency to prevent overload | Success: Parallel execution works correctly, exceptions don't crash system, results include all skills, performance improvement measurable (< 40% of sequential time)_
+
+- [ ] 8.5. 扩展 MemoryManager 支持 SkillEvent
+  - Files:
+    - `backend/app/core/memory_manager.py`
+  - Add record_skill_event() method
+  - Update SessionContext to include last_artifact field
+  - Modify get_summary() to include recent skill events
+  - Enable task跳跃 context passing
+  - Purpose: 记录 Skill 执行事件，支持任务跳跃
+  - _Leverage: existing MemoryManager from Phase 2, SkillEvent model from task 8.3_
+  - _Requirements: 17 (任务跳跃)_
+  - _Prompt: Role: Backend Developer with state management expertise | Task: Extend MemoryManager following requirement 17, modifying: (1) add record_skill_event(user_id, session_id, event: SkillEvent) method storing events in SessionContext, (2) modify SessionContext model to add last_artifact: Optional[Dict], recent_skills: List[SkillEvent], (3) update get_summary() to include recent skill history in memory summary, (4) enable Planner to query last_artifact for task跳跃 (e.g., "第2题讲一下"), (5) persist skill events to SQLite chat_history with artifact JSON | Restrictions: Must limit recent_skills to last 5 events, serialize artifact to JSON for storage, handle missing artifacts gracefully | Success: Skill events are recorded correctly, last_artifact is accessible, task跳跃 works in demo (quiz → explain), persistence works_
+
+### Backend: 新增技能
+
+- [ ] 8.6. 实现 ContentAnalysisSkill
+  - Files:
+    - `backend/skills_config/content_analysis_skill.yaml`
+    - `backend/app/prompts/content_analysis_skill.txt`
+  - Create YAML configuration
+  - Write content analysis prompt
+  - Define output schema (knowledge_points, chapter_structure)
+  - Test with long text input
+  - Purpose: 一次解析长文本，输出结构化知识点
+  - _Leverage: Gemini API, SkillRegistry_
+  - _Requirements: 18 (并行执行与 Manus 模式)_
+  - _Prompt: Role: Backend Developer with NLP and skill implementation expertise | Task: Implement ContentAnalysisSkill following requirement 18, creating: (1) content_analysis_skill.yaml with input (content: string, subject: string optional), output (analysis_id, subject, topic, knowledge_points: array, chapter_structure, key_examples, summary), (2) content_analysis_skill.txt prompt instructing Gemini to analyze text and extract structured knowledge, (3) validate output conforms to schema, (4) test with 500-2000 character course notes, (5) ensure analysis is comprehensive yet concise | Restrictions: Must handle long inputs (up to 3000 tokens), extract 3-10 knowledge points, identify clear chapter structure, provide actionable examples | Success: ContentAnalysisSkill extracts accurate knowledge points, chapter structure is logical, key examples are relevant, output is JSON-valid_
+
+- [ ] 8.7. 实现 NotesSkill
+  - Files:
+    - `backend/skills_config/notes_skill.yaml`
+    - `backend/app/prompts/notes_skill.txt`
+  - Create YAML configuration
+  - Write notes generation prompt
+  - Support consuming ContentAnalysis output
+  - Test with task跳跃 scenario
+  - Purpose: 笔记生成技能，支持任务跳跃示例
+  - _Leverage: ContentAnalysisSkill output, Memory context_
+  - _Requirements: 17 (任务跳跃)_
+  - _Prompt: Role: Backend Developer with educational content expertise | Task: Implement NotesSkill following requirement 17, creating: (1) notes_skill.yaml with input (topic, source_content optional, knowledge_points optional), output (notes_id, subject, topic, structured_notes with sections and bullet points), (2) notes_skill.txt prompt for generating学习笔记 with clear structure, (3) consume ContentAnalysis output if available (knowledge_points), (4) fallback to generating notes from topic alone, (5) test task跳跃: quiz → explain → notes | Restrictions: Must generate well-structured notes (title, sections, bullet points), include key concepts and examples, limit to 300-500 words | Success: NotesSkill generates clear structured notes, consumes ContentAnalysis correctly, task跳跃 demo works_
+
+### Integration and Refactoring
+
+- [ ] 8.8. 集成 V2 组件到 Agent API
+  - Files:
+    - `backend/app/api/agent.py`
+  - Modify agent_chat to use ContextCollector
+  - Integrate Planner after IntentRouter
+  - Update Orchestrator to use ExecutionPlan
+  - Add Manus mode for long text (> 500 chars)
+  - Return suggested_next_skills in response
+  - Purpose: 集成所有 V2 组件到统一 API
+  - _Leverage: All Phase 8 backend components_
+  - _Requirements: 15, 16, 17, 18_
+  - _Prompt: Role: Senior Backend Developer with API integration expertise | Task: Integrate V2 components into Agent API following requirements 15-18, modifying agent_chat to: (1) call ContextCollector.collect() before IntentRouter, (2) call Planner.make_plan() after IntentRouter, (3) pass ExecutionPlan to Orchestrator, (4) detect long text (len > 500) and use Manus mode (ContentAnalysis → parallel skills → LearningBundle), (5) include suggested_next_skills in AgentChatResponse, (6) record SkillEvent after each skill execution, (7) maintain backward compatibility with V1 flow | Restrictions: Must handle both V1 and V2 flows gracefully, ensure no breaking changes, log all decision points, test with both short and long inputs | Success: V1 flow still works, V2 features activate correctly, suggested_next_skills are returned, Manus mode works, no regressions_
+
+- [ ] 8.9. 修改 LearningBundleSkill 支持汇总
+  - Files:
+    - `backend/app/prompts/learning_bundle_skill.txt`
+  - Update prompt to consume multiple skill outputs
+  - Add assemble() method for aggregating results
+  - Generate learning path recommendations
+  - Purpose: 汇总多个 Skill 产物为学习包
+  - _Leverage: Parallel execution results from task 8.4_
+  - _Requirements: 18_
+  - _Prompt: Role: Backend Developer with content aggregation expertise | Task: Enhance LearningBundleSkill following requirement 18, modifying: (1) add assemble(analysis: Dict, components: List[Dict]) method that aggregates ContentAnalysis + parallel skill results, (2) update learning_bundle_skill.txt prompt to structure bundle with learning_path (recommended order), components (notes, quiz, flashcards), estimated_time, (3) generate coherent bundle metadata from components, (4) test Manus flow: ContentAnalysis → [NotesSkill, QuizSkill, FlashcardSkill] parallel → LearningBundle汇总 | Restrictions: Must preserve all component content, generate logical learning_path, calculate total estimated_time, ensure bundle is coherent | Success: assemble() aggregates results correctly, learning_path is logical, bundle is well-structured, Manus demo works end-to-end_
+
+### Frontend: V2 UI 增强
+
+- [ ] 8.10. 实现推荐下一步 UI 组件
+  - Files:
+    - `frontend/src/components/suggestions/NextSkillSuggestions.tsx`
+    - `frontend/src/components/chat/MessageBubble.tsx`
+  - Create NextSkillSuggestions component
+  - Display suggested_next_skills as action buttons
+  - Handle button click to trigger new request
+  - Add to MessageBubble for Agent responses
+  - Purpose: 显示推荐的后续 Skills，提升用户体验
+  - _Leverage: suggested_next_skills from backend response_
+  - _Requirements: 15 (推荐系统)_
+  - _Prompt: Role: Frontend Developer with UX expertise | Task: Implement NextSkillSuggestions component following requirement 15, creating: (1) NextSkillSuggestions.tsx accepting suggestions: Array<{skill_id, label, score}>, (2) render as horizontal button list with friendly labels (e.g., "要不要出几道题练习？"), (3) onClick handler calls useAgent.sendMessage() with skill-specific prompt, (4) integrate into MessageBubble to show below Agent responses, (5) style with Tailwind (blue buttons, hover effects, rounded), (6) hide if suggestions empty | Restrictions: Must follow app design theme, buttons should be clickable and responsive, limit to 3 suggestions, show score as opacity (higher score = more prominent) | Success: Suggestions render correctly, clicking triggers new request, UI is intuitive and beautiful, matches design theme_
+
+- [ ] 8.11. 增强 LearningBundleCard 组件
+  - Files:
+    - `frontend/src/components/artifacts/LearningBundleCard.tsx`
+    - `frontend/src/components/artifacts/index.ts`
+  - Redesign LearningBundleCard to nest child cards
+  - Display learning_path prominently
+  - Support expand/collapse for components
+  - Integrate QuizCard, ExplainCard, FlashcardCard
+  - Purpose: 完整展示学习包，嵌套多种学习材料
+  - _Leverage: existing artifact cards from Phase 5_
+  - _Requirements: 18 (Manus 学习包)_
+  - _Prompt: Role: Frontend Developer specializing in complex component composition | Task: Enhance LearningBundleCard following requirement 18, redesigning to: (1) accept bundle: {bundle_id, subject, topic, learning_path: string[], components: Array<{component_type, content}>}, (2) render learning_path as numbered steps with icons, (3) render each component by type (notes → NotesCard, quiz → QuizCard, flashcards → FlashcardCard), (4) support expand/collapse for each component, (5) style as master card with nested sub-cards, (6) add estimated_time display | Restrictions: Must nest cards properly without breaking layout, ensure sub-cards are fully functional (quiz answers work), handle large bundles (>5 components), maintain responsive design | Success: LearningBundleCard nests sub-cards correctly, learning_path is clear, expand/collapse works, all sub-card interactions work, design is cohesive_
+
+### Testing and Demo
+
+- [ ] 8.12. 创建 V2 功能测试套件
+  - Files:
+    - `backend/tests/test_context_collector.py`
+    - `backend/tests/test_planner.py`
+    - `backend/tests/test_parallel_execution.py`
+  - Test ContextCollector aggregation
+  - Test Planner decision logic
+  - Test parallel execution performance
+  - Test task跳跃 scenarios
+  - Purpose: 验证 V2 核心功能可靠性
+  - _Leverage: pytest, TestClient_
+  - _Requirements: All V2 requirements_
+  - _Prompt: Role: QA Engineer with backend testing expertise | Task: Create comprehensive V2 tests, testing: (1) ContextCollector.collect() aggregates all context correctly (user_profile, session_context, recent_turns), (2) Planner.make_plan() generates valid ExecutionPlan with current_skill and suggested_next_skills, (3) execute_skills_parallel() runs multiple skills concurrently and returns all results, (4) task跳跃 scenario: send "给我3道题" → record event → send "第2题讲一下" → Planner accesses last_artifact, (5) Manus mode: long text → ContentAnalysis → parallel execution → bundle汇总, use mocks for Gemini API | Restrictions: Must test all edge cases, mock external APIs, verify performance improvement (parallel < 50% of sequential), test error handling | Success: All V2 features have test coverage, tests pass reliably, performance gains confirmed, edge cases handled_
+
+- [ ] 8.13. 创建 V2 Demo 场景脚本
+  - Create 3 demo scripts for V2 features
+  - Document expected inputs and outputs
+  - Record demo videos (optional)
+  - Purpose: 展示 V2 核心价值
+  - _Leverage: Running V2-enabled application_
+  - _Requirements: All V2 requirements_
+  - _Prompt: Role: Product Manager with demo script expertise | Task: Create 3 demo scenarios following V2 requirements: (1) **模糊意图探索**: input "帮我学习极限" → system identifies explain 0.7, quiz 0.6, flashcard 0.4 → executes explain → shows suggestions "要不要出几道题练习？", (2) **任务跳跃**: input "给我3道极限练习题" → system generates quiz → user "第2题我不会，讲一下" → system retrieves quiz artifact and explains question 2 → user "整理成笔记" → system generates notes from explanation, (3) **Manus学习包**: input "这是我今天的微积分课笔记：[500+ chars of content]" → system: ContentAnalysis → parallel (notes, quiz, flashcards) → displays LearningBundleCard with learning_path and nested components | Restrictions: Scripts must be realistic and repeatable, document exact inputs, verify outputs match expectations, include screenshots | Success: All 3 scenarios work end-to-end, outputs are correct, demo is compelling_
+
+- [ ] 8.14. 性能优化和最终打磨
+  - Measure parallel execution performance gain
+  - Optimize ContextCollector to reduce latency
+  - Add caching for ContentAnalysis results
+  - Polish V2 UI animations
+  - Update README with V2 features
+  - Purpose: 确保 V2 production-ready
+  - _Leverage: Chrome DevTools, profiling_
+  - _Requirements: V2 Non-functional requirements_
+  - _Prompt: Role: Senior Developer with performance optimization expertise | Task: Optimize V2 features for production, performing: (1) benchmark parallel execution vs sequential (target: 40-60% time reduction), (2) optimize ContextCollector to cache recent context (reduce DB calls), (3) implement caching for ContentAnalysis results (5 min TTL), (4) add smooth animations for NextSkillSuggestions (fade-in), (5) update README.md with V2 architecture diagram and feature list, (6) run Lighthouse audit and fix performance issues | Restrictions: Must maintain functionality while optimizing, cache invalidation must be correct, animations should be subtle, README should be comprehensive yet concise | Success: Parallel execution is 40-60% faster, ContextCollector is optimized, caching works correctly, UI animations are smooth, README is updated_
+
 ## Summary
 
-Total tasks: **44 tasks** organized in 7 phases:
+Total tasks: **58 tasks** organized in 8 phases:
+
+### V1 Tasks (Phase 1-7)
 - **Phase 1**: 5 tasks (Project Setup) ✅
 - **Phase 2**: 11 tasks (Core Modules) ✅
 - **Phase 3**: 5 tasks (Skills Implementation) ✅
@@ -667,18 +860,35 @@ Total tasks: **44 tasks** organized in 7 phases:
 - **Phase 6**: 4 tasks (Integration and Testing) ⏳
 - **Phase 7**: 10 tasks (用户认证与持久化) 🆕 ⏳
 
-**Estimated Implementation Time**: 
-- Phases 1-6: 3-5 days ✅
-- Phase 7 (新增): +2-3 days
-- **Total**: 5-8 days (full-time development)
+### V2 Tasks (Phase 8) 🆕
+- **Phase 8**: 14 tasks (V2 进阶功能) ⏳
+  - Backend新增组件: 5 tasks (ContextCollector, IntentRouter扩展, Planner, Orchestrator扩展, MemoryManager扩展)
+  - Backend新增技能: 2 tasks (ContentAnalysisSkill, NotesSkill)
+  - 集成和重构: 2 tasks (Agent API集成, LearningBundleSkill增强)
+  - 前端V2增强: 2 tasks (NextSkillSuggestions, LearningBundleCard)
+  - 测试和Demo: 3 tasks (测试套件, Demo场景, 性能优化)
 
-**Dependencies**: Tasks must be completed in order within each phase, but phases can have some parallel work (backend and frontend can progress simultaneously after phase 1).
+**Estimated Implementation Time**: 
+- **V1 (Phases 1-7)**: 5-8 days ✅ (21/31 tasks完成, 68%)
+- **V2 (Phase 8)**: +5-7 days (模糊问题处理 + 任务跳跃 + 并行执行)
+- **Total**: 10-15 days (full-time development)
+
+**Dependencies**: 
+- V2 Phase 8 must start after V1 Phase 1-5 are complete (Core架构已实现)
+- V2 tasks can be developed independently after core components are ready
+- Frontend V2 tasks depend on backend V2 API being ready
 
 **Key Milestones**:
-- After Phase 1: Project infrastructure is ready
-- After Phase 2: Core backend logic is complete
-- After Phase 3: Skills can generate content
-- After Phase 4: Backend API is fully functional
-- After Phase 5: Frontend UI is complete
-- After Phase 6: System is production-ready for demo
+- **After Phase 1-5**: V1 core architecture完成 ✅
+- **After Phase 6**: V1 integration tests通过 ⏳
+- **After Phase 7**: V1用户认证和持久化完成 ⏳
+- **After Phase 8.1-8.5**: V2后端核心组件完成 ⏳
+- **After Phase 8.6-8.9**: V2新技能和集成完成 ⏳
+- **After Phase 8.10-8.11**: V2前端UI增强完成 ⏳
+- **After Phase 8.12-8.14**: V2测试、Demo和优化完成 ⏳
+
+**V2 Architecture Goals**:
+1. **模糊问题处理**: 意图分布 + 多候选推荐 + 探索式决策
+2. **任务跳跃能力**: Planner大脑层 + SkillEvent记录 + Memory传递上下文
+3. **并行执行&Manus模式**: ContentAnalysis一次解析 + 多Skill并行 + Token成本优化40-60%
 
