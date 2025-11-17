@@ -547,3 +547,102 @@
 15. 🆕 **学习包完整性**：Manus 模式生成的学习包包含至少3种类型的学习材料（笔记、练习题、闪卡），且内容连贯
 16. 🆕 **Token 成本优化**：并行执行模式相比顺序调用多个 Skill，token 消耗减少 40-60%
 
+---
+
+## V3: 上下文管理与成本优化 (基于 Manus 启发的架构改进)
+
+### Requirement 12: KV 缓存优化
+
+**User Story:** 作为系统，我希望通过 KV 缓存优化重复上下文的处理，从而降低延迟和token成本（针对输入输出比100:1的Agent场景，成本可降低近10倍）。
+
+#### Acceptance Criteria
+
+1. WHEN 用户发起多轮对话 THEN 系统 SHALL 识别并缓存重复的上下文前缀（如system prompt、历史对话）
+2. WHEN 使用缓存命中 THEN 系统 SHALL 跳过Prefill阶段，直接使用缓存的KV状态
+3. WHEN 输入token与输出token比例 >= 100:1 THEN 系统 SHALL 自动启用缓存优化
+4. WHEN 缓存启用后 THEN 平均响应延迟 SHALL 降低 30-50%
+5. WHEN 缓存启用后 THEN 输入token成本 SHALL 降低 80-90%（对于高输入比场景）
+
+### Requirement 13: 文件系统作为外部记忆
+
+**User Story:** 作为Agent，我希望将文件系统作为外部长期记忆，而不是依赖模型上下文存储所有历史，从而实现无限容量、持久化和结构化的记忆管理。
+
+#### Acceptance Criteria
+
+1. WHEN Agent 需要记录信息 THEN 系统 SHALL 提供 `write_memory` 工具将内容写入文件系统
+2. WHEN Agent 需要回忆信息 THEN 系统 SHALL 提供 `read_memory` 工具从文件系统检索内容
+3. WHEN 存储学习材料 THEN 系统 SHALL 使用结构化格式（JSON/Markdown）便于检索和Agent理解
+4. WHEN 文件系统存储使用 THEN 上下文窗口 SHALL 只保留当前任务相关的摘要，历史详情存于文件
+5. WHEN Agent 主动管理记忆 THEN 系统 SHALL 学会何时写入、何时读取、如何组织信息
+6. WHEN 记忆容量 THEN 文件系统存储 SHALL 无大小限制（相比上下文窗口的固定限制）
+
+### Requirement 14: 可恢复压缩（指针引用）
+
+**User Story:** 作为Agent，我希望用轻量级"指针"（如文件路径、URL、ID）代替庞大的原始信息，从而实现100%信息保真的无损"压缩"。
+
+#### Acceptance Criteria
+
+1. WHEN 生成大型学习材料（如长文档、图片、音频）THEN 系统 SHALL 存储到文件系统并返回唯一标识符
+2. WHEN 上下文中引用内容 THEN 系统 SHALL 使用指针（如 `file://notes/ww2_history.md`）而非完整内容
+3. WHEN Agent 需要访问内容 THEN 系统 SHALL 通过指针恢复完整信息（100%保真）
+4. WHEN 指针引用使用 THEN 上下文token消耗 SHALL 降低 90%+（对于大型内容）
+5. WHEN 多次引用同一内容 THEN 系统 SHALL 重用指针，避免重复传输
+
+### Requirement 15: 保留错误尝试（从失败中学习）
+
+**User Story:** 作为Agent，我希望在上下文中完整保留失败记录，从而通过观察错误隐式更新内部信念，避免重复犯错。
+
+#### Acceptance Criteria
+
+1. WHEN 工具调用失败 THEN 系统 SHALL 完整保留失败记录（Action + Error Observation）
+2. WHEN 继续对话 THEN 系统 SHALL 将失败记录追加到上下文末端（而非隐藏）
+3. WHEN 模型看到失败记录 THEN 它 SHALL 调整后续行为，避免相同错误
+4. WHEN 成功纠正错误 THEN 系统 SHALL 同时保留失败和成功记录（形成完整的学习轨迹）
+5. WHEN 错误记录数量 THEN 系统 SHALL 保留最近的5-10条失败（避免上下文过载）
+
+### Requirement 16: 预填充引导模式（Prefill Guidance）
+
+**User Story:** 作为系统，我希望通过在 `<...>assistant` 位置预先拼接不同文本，精确引导模型行为（自动/必需/指定三种模式）。
+
+#### Acceptance Criteria
+
+1. WHEN 使用自动模式 THEN 系统 SHALL 在助手位置预填充 `<...>assistant`，让模型自由响应
+2. WHEN 使用必需模式 THEN 系统 SHALL 预填充 `<...>assistant<tool_code>`，强制模型调用工具
+3. WHEN 使用指定模式 THEN 系统 SHALL 预填充 `<...>assistant<tool_code>specific_tool(...)`，指定具体工具和参数
+4. WHEN 预填充生效 THEN 模型输出 SHALL 严格遵循预填充的引导格式
+5. WHEN 需要强制行为 THEN 系统 SHALL 优先使用必需/指定模式而非依赖Prompt指令
+
+### Requirement 17: 动态计划管理（Todo追加架构）
+
+**User Story:** 作为Agent，我希望通过"只追加"的todo管理机制，将最重要的导航信息始终置于上下文末端（注意力最强区域），从而高效对抗遗忘。
+
+#### Acceptance Criteria
+
+1. WHEN Agent 制定计划 THEN 系统 SHALL 生成结构化 `todo.md` 并追加到上下文末端
+2. WHEN 计划更新 THEN 系统 SHALL 重写整个 `todo.md` 并再次追加到末端（而非修改原处）
+3. WHEN 上下文窗口 THEN 最新的计划 SHALL 始终位于注意力最强的"近期范围"
+4. WHEN 任务进行中 THEN Agent SHALL 能实时看到当前任务、已完成任务、待办任务
+5. WHEN todo追加后 THEN 系统 SHALL 利用注意力特性，让模型专注于最新计划状态
+
+### Requirement 18: 目标漂移防护
+
+**User Story:** 作为Agent，我希望在长任务链（如10+步骤）中保持目标聚焦，避免因上下文稀释导致的"目标漂移"问题。
+
+#### Acceptance Criteria
+
+1. WHEN 任务链长度 > 10步 THEN 系统 SHALL 每5步重写一次高层目标到上下文末端
+2. WHEN 目标重写 THEN 系统 SHALL 包含：原始用户请求、当前进度、剩余关键任务
+3. WHEN 检测到偏离 THEN 系统 SHALL 通过 Planner 重新评估当前行为是否符合原始目标
+4. WHEN 长任务完成率 THEN 使用目标防护的任务完成率 SHALL > 85%（相比无防护的 < 60%）
+5. WHEN Agent行为 THEN 系统 SHALL 进化为会计划、会回顾、会纠偏的"项目经理"模式
+
+### V3 成功标准
+
+17. 🚀 **KV缓存效果**：对于多轮对话场景，响应延迟降低 30-50%，输入token成本降低 80%+
+18. 🚀 **文件系统集成**：Agent 能主动使用 read/write 工具管理外部记忆，上下文窗口仅保留当前任务摘要
+19. 🚀 **指针压缩率**：大型内容（>1000 tokens）通过指针引用后，上下文占用降低 90%+
+20. 🚀 **错误学习能力**：相同类型错误的重复率 < 10%（相比无错误记录的 > 40%）
+21. 🚀 **预填充准确性**：强制工具调用的成功率 > 95%（必需/指定模式）
+22. 🚀 **长任务完成率**：10+ 步骤任务的完成率 > 85%（使用todo追加 + 目标防护）
+23. 🚀 **目标一致性**：长任务中偏离原始目标的步骤 < 15%
+

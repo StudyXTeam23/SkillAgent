@@ -9,9 +9,9 @@
 <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet"/>
-<!-- Mind Elixir for Mind Map Rendering (Local) -->
-<link rel="stylesheet" href="/node_modules/mind-elixir/dist/MindElixir.css">
-<script type="module" src="/src/mindmap-loader.js"></script>
+    <!-- Mind Elixir for Mind Map Rendering (IIFE version - works without module bundler) -->
+    <link rel="stylesheet" href="/node_modules/mind-elixir/dist/MindElixir.css">
+    <script src="/node_modules/mind-elixir/dist/MindElixir.iife.js"></script>
 <script id="tailwind-config">
       tailwind.config = {
         darkMode: "class",
@@ -157,6 +157,9 @@ async function handleSend() {
     
     if (!message) return;
     
+    console.log('📤 Sending message:', message);
+    console.log('🌐 API Base:', API_BASE);
+    
     // 清空输入框
     input.value = '';
     
@@ -167,23 +170,34 @@ async function handleSend() {
     addLoadingMessage();
     
     try {
-        const response = await fetch(`${API_BASE}/api/agent/chat`, {
+        const url = `${API_BASE}/api/agent/chat`;
+        console.log('🔗 Request URL:', url);
+        
+        const requestBody = {
+            user_id: USER_ID,
+            session_id: SESSION_ID,
+            message: message
+        };
+        console.log('📦 Request body:', requestBody);
+        
+        const response = await fetch(url, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({
-                user_id: USER_ID,
-                session_id: SESSION_ID,
-                message: message
-            })
+            body: JSON.stringify(requestBody)
         });
         
+        console.log('📥 Response status:', response.status);
+        
         if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            const errorText = await response.text();
+            console.error('❌ Response error:', errorText);
+            throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
         }
         
         const data = await response.json();
+        console.log('✅ Response data:', data);
         
         // 移除加载消息
         removeLoadingMessage();
@@ -192,9 +206,10 @@ async function handleSend() {
         addAgentMessage(data);
         
     } catch (error) {
-        console.error('Error:', error);
+        console.error('❌ Error details:', error);
+        console.error('Error stack:', error.stack);
         removeLoadingMessage();
-        addErrorMessage('No response from server. Please check your connection.');
+        addErrorMessage(`连接失败: ${error.message}. 请检查后端是否运行在 ${API_BASE}`);
     }
 }
 
@@ -386,6 +401,88 @@ function renderFlashcardSet(content) {
     });
     
     html += '</div>';
+    return html;
+}
+
+// 渲染 Notes (学习笔记) - Notebook 风格，支持编辑
+function renderNotesCard(content) {
+    const notes = content.structured_notes || {};
+    const sections = notes.sections || [];
+    const notesId = content.notes_id || `notes_${Date.now()}`;
+    
+    let html = `
+        <div class="w-full rounded-xl border-2 border-border-light dark:border-border-dark bg-white dark:bg-gray-800 shadow-lg overflow-hidden notebook-container" id="notes_${notesId}" data-notes-id="${notesId}">
+            <!-- 笔记头部 -->
+            <div class="bg-gradient-to-r from-blue-500 to-purple-600 p-6">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <span class="material-symbols-outlined text-white text-3xl">description</span>
+                        <div>
+                            <p class="text-sm text-blue-100">${content.subject || '学习笔记'}</p>
+                            <h3 class="text-2xl font-bold text-white editable-title" contenteditable="false">${notes.title || content.topic || '笔记'}</h3>
+                        </div>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="toggleEditMode('${notesId}')" class="edit-btn px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg transition-all flex items-center gap-2">
+                            <span class="material-symbols-outlined text-sm">edit</span>
+                            <span class="edit-text">编辑</span>
+                        </button>
+                        <button onclick="saveNotes('${notesId}')" class="save-btn hidden px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-all flex items-center gap-2">
+                            <span class="material-symbols-outlined text-sm">save</span>
+                            <span>保存</span>
+                        </button>
+                        <button onclick="cancelEdit('${notesId}')" class="cancel-btn hidden px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-all flex items-center gap-2">
+                            <span class="material-symbols-outlined text-sm">close</span>
+                            <span>取消</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 笔记内容区域 -->
+            <div class="p-8 space-y-6 notes-content bg-amber-50/30 dark:bg-gray-900/30">`;
+    
+    sections.forEach((section, idx) => {
+        html += `
+            <div class="notebook-section bg-white dark:bg-gray-800 rounded-lg p-6 border-l-4 border-blue-500 shadow-sm hover:shadow-md transition-shadow" data-section-id="${idx}">
+                <div class="flex items-center justify-between mb-4">
+                    <h4 class="text-xl font-bold text-gray-800 dark:text-gray-100 section-heading" contenteditable="false">
+                        ${section.heading}
+                    </h4>
+                    <button onclick="addBulletPoint('${notesId}', ${idx})" class="add-point-btn hidden text-blue-500 hover:text-blue-700 p-1">
+                        <span class="material-symbols-outlined text-sm">add_circle</span>
+                    </button>
+                </div>
+                <ul class="space-y-3 bullet-list">`;
+        
+        (section.bullet_points || []).forEach((point, pointIdx) => {
+            html += `
+                <li class="flex items-start gap-3 group" data-point-id="${pointIdx}">
+                    <span class="text-blue-500 mt-1 text-lg">•</span>
+                    <span class="flex-1 text-base text-gray-700 dark:text-gray-300 leading-relaxed bullet-point" contenteditable="false">${point}</span>
+                    <button onclick="removeBulletPoint('${notesId}', ${idx}, ${pointIdx})" class="delete-point-btn hidden opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 transition-opacity p-1">
+                        <span class="material-symbols-outlined text-sm">delete</span>
+                    </button>
+                </li>`;
+        });
+        
+        html += `
+                </ul>
+            </div>`;
+    });
+    
+    html += `
+            </div>
+            
+            <!-- 笔记底部 -->
+            <div class="bg-gray-50 dark:bg-gray-900 px-8 py-4 border-t border-gray-200 dark:border-gray-700">
+                <p class="text-sm text-gray-500 dark:text-gray-400">
+                    <span class="material-symbols-outlined text-xs align-middle">info</span>
+                    点击"编辑"按钮进入编辑模式，可以修改标题、章节标题和要点内容
+                </p>
+            </div>
+        </div>`;
+    
     return html;
 }
 
@@ -600,11 +697,30 @@ function convertMindMapNode(node) {
 function addAgentMessage(data) {
     const messagesDiv = document.getElementById('chatMessages').querySelector('.flex.flex-col.gap-6');
     
+    // 🔍 调试：打印完整响应
+    console.log('📥 Agent response:', {
+        content_type: data.content_type,
+        intent: data.intent,
+        skill_id: data.skill_id,
+        has_structured_notes: !!data.response_content?.structured_notes,
+        response_content_keys: Object.keys(data.response_content || {}),
+        full_response: data
+    });
+    
     // 根据 content_type 渲染不同的卡片
     let contentHtml = '';
     
     if (data.content_type === 'mixed_response' && data.response_content.results) {
         // 混合请求：渲染多个结果
+        console.log('🎭 Mixed response results:', data.response_content.results);
+        data.response_content.results.forEach((result, idx) => {
+            console.log(`📦 Result ${idx + 1}:`, {
+                content_type: result.content_type,
+                has_structured_notes: !!result.content?.structured_notes,
+                content_keys: Object.keys(result.content || {})
+            });
+        });
+        
         contentHtml = '<div class="flex flex-col gap-6 w-full">';
         data.response_content.results.forEach((result, idx) => {
             contentHtml += `<div class="border-l-4 border-primary pl-4">`;
@@ -620,6 +736,8 @@ function addAgentMessage(data) {
                 contentHtml += renderLearningBundle(result.content);
             } else if (result.content_type === 'mindmap' && result.content.root) {
                 contentHtml += renderMindMapCard(result.content);
+            } else if (result.content_type === 'notes' && result.content.structured_notes) {
+                contentHtml += renderNotesCard(result.content);
             } else {
                 contentHtml += `<pre class="text-xs">${JSON.stringify(result.content, null, 2)}</pre>`;
             }
@@ -641,6 +759,15 @@ function addAgentMessage(data) {
     } else if (data.content_type === 'mindmap' && data.response_content.root) {
         // 思维导图渲染
         contentHtml = renderMindMapCard(data.response_content);
+    } else if (data.content_type === 'notes') {
+        // 学习笔记渲染
+        console.log('📝 渲染笔记, response_content:', data.response_content);
+        if (data.response_content.structured_notes) {
+            contentHtml = renderNotesCard(data.response_content);
+        } else {
+            console.warn('⚠️ Notes 数据结构不正确，缺少 structured_notes');
+            contentHtml = `<pre class="text-xs overflow-auto p-4 bg-gray-100 dark:bg-gray-800 rounded">${JSON.stringify(data.response_content, null, 2)}</pre>`;
+        }
     } else if (data.content_type === 'text' && data.response_content.text) {
         // 文本对话（如 "other" 意图）
         contentHtml = `<p class="text-base font-normal leading-normal rounded-xl rounded-bl-none px-4 py-3 bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark text-text-light-primary dark:text-text-dark-primary whitespace-pre-wrap max-w-2xl">${data.response_content.text}</p>`;
@@ -705,6 +832,196 @@ function handleNewChat() {
         </div>
     `;
 }
+
+// ========================================
+// 笔记编辑功能
+// ========================================
+
+// 切换编辑模式
+function toggleEditMode(notesId) {
+    const container = document.getElementById(`notes_${notesId}`);
+    if (!container) return;
+    
+    const isEditing = container.classList.contains('editing-mode');
+    
+    if (isEditing) {
+        exitEditMode(container);
+    } else {
+        enterEditMode(container);
+    }
+}
+
+// 进入编辑模式
+function enterEditMode(container) {
+    container.classList.add('editing-mode');
+    
+    container.querySelector('.edit-btn').classList.add('hidden');
+    container.querySelector('.save-btn').classList.remove('hidden');
+    container.querySelector('.cancel-btn').classList.remove('hidden');
+    
+    container.querySelectorAll('[contenteditable]').forEach(el => {
+        el.contentEditable = 'true';
+        el.classList.add('editing', 'bg-yellow-50', 'dark:bg-yellow-900/20', 'px-2', 'py-1', 'rounded', 'border', 'border-yellow-300', 'dark:border-yellow-700');
+    });
+    
+    container.querySelectorAll('.add-point-btn, .delete-point-btn').forEach(btn => {
+        btn.classList.remove('hidden');
+    });
+    
+    container.dataset.originalContent = container.innerHTML;
+    console.log('✏️ 进入编辑模式');
+}
+
+// 退出编辑模式
+function exitEditMode(container) {
+    container.classList.remove('editing-mode');
+    
+    container.querySelector('.edit-btn').classList.remove('hidden');
+    container.querySelector('.save-btn').classList.add('hidden');
+    container.querySelector('.cancel-btn').classList.add('hidden');
+    
+    container.querySelectorAll('[contenteditable="true"]').forEach(el => {
+        el.contentEditable = 'false';
+        el.classList.remove('editing', 'bg-yellow-50', 'dark:bg-yellow-900/20', 'px-2', 'py-1', 'rounded', 'border', 'border-yellow-300', 'dark:border-yellow-700');
+    });
+    
+    container.querySelectorAll('.add-point-btn, .delete-point-btn').forEach(btn => {
+        btn.classList.add('hidden');
+    });
+    
+    delete container.dataset.originalContent;
+    console.log('👁️ 退出编辑模式');
+}
+
+// 保存笔记
+async function saveNotes(notesId) {
+    const container = document.getElementById(`notes_${notesId}`);
+    if (!container) return;
+    
+    try {
+        const title = container.querySelector('.editable-title').textContent.trim();
+        const sections = [];
+        
+        container.querySelectorAll('.notebook-section').forEach(sectionEl => {
+            const heading = sectionEl.querySelector('.section-heading').textContent.trim();
+            const bullet_points = [];
+            
+            sectionEl.querySelectorAll('.bullet-point').forEach(pointEl => {
+                const text = pointEl.textContent.trim();
+                if (text) bullet_points.push(text);
+            });
+            
+            if (heading && bullet_points.length > 0) {
+                sections.push({ heading, bullet_points });
+            }
+        });
+        
+        const updatedNotes = {
+            notes_id: notesId,
+            structured_notes: { title, sections }
+        };
+        
+        console.log('💾 保存笔记:', updatedNotes);
+        
+        // TODO: 发送到后端保存
+        // await fetch(`${API_BASE}/api/notes/${notesId}`, {
+        //     method: 'PUT',
+        //     headers: { 'Content-Type': 'application/json' },
+        //     body: JSON.stringify(updatedNotes)
+        // });
+        
+        exitEditMode(container);
+        showNotification('✅ 笔记已保存', 'success');
+        
+    } catch (error) {
+        console.error('保存笔记失败:', error);
+        showNotification('❌ 保存失败: ' + error.message, 'error');
+    }
+}
+
+// 取消编辑
+function cancelEdit(notesId) {
+    const container = document.getElementById(`notes_${notesId}`);
+    if (!container) return;
+    
+    if (container.dataset.originalContent) {
+        container.innerHTML = container.dataset.originalContent;
+    }
+    
+    console.log('🚫 取消编辑');
+}
+
+// 添加要点
+function addBulletPoint(notesId, sectionIdx) {
+    const container = document.getElementById(`notes_${notesId}`);
+    if (!container) return;
+    
+    const section = container.querySelector(`[data-section-id="${sectionIdx}"]`);
+    if (!section) return;
+    
+    const bulletList = section.querySelector('.bullet-list');
+    const newPointIdx = bulletList.children.length;
+    
+    const newPoint = document.createElement('li');
+    newPoint.className = 'flex items-start gap-3 group';
+    newPoint.dataset.pointId = newPointIdx;
+    newPoint.innerHTML = `
+        <span class="text-blue-500 mt-1 text-lg">•</span>
+        <span class="flex-1 text-base text-gray-700 dark:text-gray-300 leading-relaxed bullet-point editing bg-yellow-50 dark:bg-yellow-900/20 px-2 py-1 rounded border border-yellow-300 dark:border-yellow-700" contenteditable="true">新要点（点击编辑）</span>
+        <button onclick="removeBulletPoint('${notesId}', ${sectionIdx}, ${newPointIdx})" class="delete-point-btn opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 transition-opacity p-1">
+            <span class="material-symbols-outlined text-sm">delete</span>
+        </button>
+    `;
+    
+    bulletList.appendChild(newPoint);
+    
+    const editableSpan = newPoint.querySelector('.bullet-point');
+    editableSpan.focus();
+    
+    const range = document.createRange();
+    range.selectNodeContents(editableSpan);
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+    
+    console.log('➕ 添加新要点');
+}
+
+// 删除要点
+function removeBulletPoint(notesId, sectionIdx, pointIdx) {
+    const container = document.getElementById(`notes_${notesId}`);
+    if (!container) return;
+    
+    const section = container.querySelector(`[data-section-id="${sectionIdx}"]`);
+    if (!section) return;
+    
+    const point = section.querySelector(`[data-point-id="${pointIdx}"]`);
+    if (!point) return;
+    
+    if (confirm('确定要删除这个要点吗？')) {
+        point.remove();
+        console.log('🗑️ 删除要点');
+    }
+}
+
+// 显示通知
+function showNotification(message, type = 'info') {
+    const notification = document.createElement('div');
+    notification.className = `fixed top-4 right-4 px-6 py-3 rounded-lg shadow-lg text-white z-50 transition-all ${
+        type === 'success' ? 'bg-green-500' : 
+        type === 'error' ? 'bg-red-500' : 
+        'bg-blue-500'
+    }`;
+    notification.textContent = message;
+    
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+        notification.style.opacity = '0';
+        setTimeout(() => notification.remove(), 300);
+    }, 3000);
+}
+
 </script>
 </body>
 </html>

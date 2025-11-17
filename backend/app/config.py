@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     GEMINI_MODEL: str = "gemini-2.0-flash-exp"
     
     # OpenAI API 配置（用于 MindMap Skill - 可选）
-    OPENAI_API_KEY: str = ""
+    OPENAI_API_KEY: str = ""  # 从环境变量或 .env 文件读取
     OPENAI_MODEL: str = "gpt-4o-2024-08-06"
     OPENAI_BASE_URL: str = "https://api.openai.com/v1"
     OPENAI_TIMEOUT: float = 30.0
@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     
     # 应用配置
     LOG_LEVEL: str = "INFO"
-    CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000"
+    CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3100"
     
     # 服务器配置
     HOST: str = "0.0.0.0"

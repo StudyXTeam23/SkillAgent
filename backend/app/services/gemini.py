@@ -164,6 +164,8 @@ Your JSON response:"""
         """
         尝试修复常见的 JSON 错误
         """
+        import re
+        
         # 移除可能的 markdown 代码块
         text = text.strip()
         if text.startswith("```json"):
@@ -173,6 +175,23 @@ Your JSON response:"""
         if text.endswith("```"):
             text = text[:-3]
         text = text.strip()
+        
+        # 尝试移除 JSON 中的注释（// 和 /* */）
+        # 移除单行注释
+        text = re.sub(r'//[^\n]*\n', '\n', text)
+        # 移除多行注释
+        text = re.sub(r'/\*.*?\*/', '', text, flags=re.DOTALL)
+        
+        # 移除尾随逗号（JSON 中最常见的错误）
+        # 1. 对象中的尾随逗号: , }
+        text = re.sub(r',(\s*})', r'\1', text)
+        # 2. 数组中的尾随逗号: , ]
+        text = re.sub(r',(\s*\])', r'\1', text)
+        
+        # 修复单引号为双引号（如果有的话）
+        # 但要小心不要改变字符串内部的单引号
+        # 简单策略：只替换键名的单引号
+        text = re.sub(r"'([^']*)'(\s*):", r'"\1"\2:', text)
         
         # 尝试找到最后一个完整的 JSON 对象或数组
         # 从后往前找最后一个 } 或 ]

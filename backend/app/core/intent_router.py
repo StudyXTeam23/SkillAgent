@@ -57,7 +57,8 @@ class IntentRouter:
     def _format_prompt(
         self,
         message: str,
-        memory_summary: Optional[str] = None
+        memory_summary: Optional[str] = None,
+        last_artifact_summary: Optional[str] = None
     ) -> str:
         """
         格式化 prompt
@@ -65,14 +66,16 @@ class IntentRouter:
         Args:
             message: 用户消息
             memory_summary: 记忆摘要（字符串）
+            last_artifact_summary: 上一轮 artifact 摘要（用于上下文引用）
         
         Returns:
             str: 格式化后的 prompt
         """
-        # memory_summary 现在是字符串，直接使用
+        # memory_summary 和 last_artifact_summary 现在是字符串，直接使用
         formatted = self.prompt_template.format(
             message=message,
-            memory_summary=memory_summary or "No previous context available."
+            memory_summary=memory_summary or "No previous context available.",
+            last_artifact_summary=last_artifact_summary or "No previous interaction."
         )
         
         return formatted
@@ -80,7 +83,8 @@ class IntentRouter:
     async def parse(
         self,
         message: str,
-        memory_summary: Optional[str] = None
+        memory_summary: Optional[str] = None,
+        last_artifact_summary: Optional[str] = None
     ) -> list[IntentResult]:
         """
         解析用户消息，识别意图
@@ -88,9 +92,10 @@ class IntentRouter:
         Args:
             message: 用户消息
             memory_summary: 可选的记忆摘要，用于增强识别准确度
+            last_artifact_summary: 上一轮 artifact 摘要（用于上下文引用）
         
         Returns:
-            IntentResult: 意图识别结果
+            list[IntentResult]: 意图识别结果列表
         
         Raises:
             Exception: 如果 API 调用失败
@@ -98,7 +103,7 @@ class IntentRouter:
         logger.info(f"🔍 Parsing intent for message: {message[:50]}...")
         
         # 格式化 prompt
-        prompt = self._format_prompt(message, memory_summary)
+        prompt = self._format_prompt(message, memory_summary, last_artifact_summary)
         
         try:
             # 调用 Gemini API

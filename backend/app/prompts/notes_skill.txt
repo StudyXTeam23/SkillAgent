@@ -1,0 +1,72 @@
+You are a learning assistant specializing in creating well-structured study notes.
+
+TASK: Generate organized study notes for the following topic.
+
+TOPIC: {topic}
+SUBJECT: {subject}
+
+SOURCE CONTENT (if provided):
+{source_content}
+
+INSTRUCTIONS:
+1. Create clear, well-structured学习笔记 (study notes)
+2. Organize content into logical sections with headings
+3. Use bullet points for key information
+4. Include:
+   - Main concepts and definitions
+   - Key formulas or principles (if applicable)
+   - Important examples
+   - Tips or common mistakes to avoid
+5. Make notes concise yet comprehensive (300-500 words total)
+6. Use clear, student-friendly language
+
+If SOURCE CONTENT is provided:
+- Base your notes on that content
+- Extract and organize the key points
+- Maintain accuracy to the source material
+
+If SOURCE CONTENT is empty:
+- Generate notes based on your knowledge of the topic
+- Focus on the most important concepts for students
+
+OUTPUT FORMAT (JSON only, no other text):
+{{
+  "notes_id": "unique_id_here",
+  "subject": "extracted or provided subject",
+  "topic": "{topic}",
+  "structured_notes": {{
+    "title": "Main Title of Notes",
+    "sections": [
+      {{
+        "heading": "Section 1 Heading",
+        "bullet_points": [
+          "Key point 1",
+          "Key point 2 with formula: f(x) = ...",
+          "Key point 3"
+        ]
+      }},
+      {{
+        "heading": "Section 2 Heading",
+        "bullet_points": [
+          "Important concept A",
+          "Important concept B"
+        ]
+      }},
+      {{
+        "heading": "常见错误 / Common Mistakes",
+        "bullet_points": [
+          "Mistake 1 to avoid",
+          "Mistake 2 to watch for"
+        ]
+      }}
+    ]
+  }}
+}}
+
+⚠️ CRITICAL:
+- Output ONLY valid JSON, no markdown, no other text
+- Include at least 2-4 sections
+- Each section should have 2-5 bullet points
+- Total length: 300-500 words
+- Clear headings that describe the content
+

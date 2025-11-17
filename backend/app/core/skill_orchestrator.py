@@ -220,6 +220,26 @@ class SkillOrchestrator:
         if "memory_summary" in context:
             params["memory_summary"] = context["memory_summary"]
         
+        # V1.5: 检查是否需要引用上一轮 artifact
+        if hasattr(intent_result, 'parameters') and intent_result.parameters:
+            use_last_artifact = intent_result.parameters.get('use_last_artifact', False)
+            if use_last_artifact and "session_context" in context:
+                session_ctx = context["session_context"]
+                # session_ctx 可能是字典（model_dump后）或对象
+                if isinstance(session_ctx, dict):
+                    last_artifact_content = session_ctx.get('last_artifact_content')
+                else:
+                    last_artifact_content = getattr(session_ctx, 'last_artifact_content', None)
+                
+                if last_artifact_content:
+                    # 将上一轮的 artifact 内容作为 source_content 传递给 skill
+                    import json
+                    if isinstance(last_artifact_content, dict):
+                        params["source_content"] = json.dumps(last_artifact_content, ensure_ascii=False, indent=2)
+                    else:
+                        params["source_content"] = str(last_artifact_content)
+                    logger.info(f"📎 Using last_artifact_content as source_content for {skill.id}")
+        
         # 添加用户提供的额外参数
         if additional_params:
             params.update(additional_params)
@@ -347,6 +367,8 @@ Please respond with valid JSON according to the output schema defined above.
             content_type = "explanation"
         elif "flashcard_set_id" in result or "cards" in result:
             content_type = "flashcard_set"
+        elif "notes_id" in result or "structured_notes" in result:
+            content_type = "notes"
         elif "bundle_id" in result or "components" in result:
             content_type = "learning_bundle"
         elif "mindmap_id" in result or "root" in result:

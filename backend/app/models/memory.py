@@ -76,6 +76,11 @@ class SessionContext(BaseModel):
         description="上一轮生成的产物类型"
     )
     
+    last_artifact_content: Optional[Dict[str, Any]] = Field(
+        None,
+        description="上一轮生成的完整产物内容，用于上下文引用"
+    )
+    
     last_user_message: str = Field(
         default="",
         description="用户最后一条消息"
@@ -93,6 +98,10 @@ class SessionContext(BaseModel):
                 "current_topic": "微积分-极限",
                 "recent_intents": ["quiz", "explain"],
                 "last_artifact": "quiz_set",
+                "last_artifact_content": {
+                    "quiz_id": "quiz_123",
+                    "questions": [{"question": "...", "options": [...]}]
+                },
                 "last_user_message": "给我几道练习题",
                 "updated_at": "2025-01-13T10:05:00"
             }
