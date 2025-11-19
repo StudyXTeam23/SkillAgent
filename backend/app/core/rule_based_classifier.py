@@ -110,14 +110,18 @@ class RuleBasedIntentClassifier:
             intent_type = matched_intent["intent"]
             confidence = matched_intent["confidence"]
             
-            # 2. 提取主题
-            topic = self._extract_topic(message)
-            
-            # 3. 提取数量参数
-            quantity = self._extract_quantity(message)
-            
-            # 4. 检测上下文引用（如 "第一道题"、"这些例子"）
+            # 2. 检测上下文引用（如 "第一道题"、"这些例子"、"类似的"）
             use_last_artifact = self._detect_context_reference(message)
+            
+            # 3. 提取主题（如果是上下文引用，topic设为None，由Orchestrator从session获取）
+            if use_last_artifact:
+                topic = None  # 🆕 上下文引用时，不提取topic
+                logger.info(f"🔗 Context reference detected, topic will be inferred from session")
+            else:
+                topic = self._extract_topic(message)
+            
+            # 4. 提取数量参数
+            quantity = self._extract_quantity(message)
             
             # 5. 构建结果
             result = {
@@ -256,7 +260,7 @@ class RuleBasedIntentClassifier:
     
     def _detect_context_reference(self, message: str) -> bool:
         """
-        检测消息是否引用了上下文（如 "第一道题"、"这些例子"）
+        检测消息是否引用了上下文（如 "第一道题"、"这些例子"、"类似的"、"再来"）
         
         Args:
             message: 用户消息
@@ -264,14 +268,22 @@ class RuleBasedIntentClassifier:
         Returns:
             是否需要使用上一轮的 artifact 内容
         """
-        # 只保留非常明确的引用关键词（用于快速检测）
-        # 复杂的引用表达交给LLM处理
+        # 扩展上下文引用关键词（用于快速检测）
         context_keywords = [
             # 明确的序号引用
             "第一道题", "第二道题", "第三道题", "第四道题", "第五道题",
-            "第一个例子", "第二个例子", "第三个例子",
+            "第一个例子", "第二个例子", "第三个例子", "第一题", "第二题",
             "第1道", "第2道", "第3道", "第4道", "第5道",
             "第1个例子", "第2个例子", "第3个例子",
+            # 🆕 相似性引用
+            "类似", "类似的", "相似", "相似的", "一样的", "同样的",
+            # 🆕 继续性引用
+            "再来", "再出", "再给", "继续", "再生成", "再做",
+            # 🆕 指代引用
+            "这道题", "这个", "这些", "那道题", "那个", "那些",
+            "上面的", "刚才的", "之前的",
+            # 🆕 基于性引用
+            "根据", "基于", "参考"
         ]
         
         message_lower = message.lower()

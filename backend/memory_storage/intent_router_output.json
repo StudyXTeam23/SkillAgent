@@ -1,78 +1,20 @@
 {
   "description": "Intent Router 实时输出记录 (Phase 3 架构)",
   "latest": {
-    "timestamp": "2025-11-19T13:50:24.997637",
-    "user_message": "什么是光合作用",
+    "timestamp": "2025-11-19T13:57:38.941029",
+    "user_message": "解释一下牛顿第二定律",
     "method": "rule_engine",
     "tokens_used": 0,
     "results": [
       {
         "intent": "explain_request",
-        "topic": "光合作用",
+        "topic": "牛顿第二定律",
         "confidence": 0.95,
         "parameters": {}
       }
     ]
   },
   "history": [
-    {
-      "timestamp": "2025-11-19T10:13:51.826580",
-      "user_message": "给我5道二战历史的题",
-      "method": "rule_engine",
-      "tokens_used": 0,
-      "results": [
-        {
-          "intent": "quiz_request",
-          "topic": "二战历史",
-          "confidence": 0.95,
-          "parameters": {
-            "quantity": 5
-          }
-        }
-      ]
-    },
-    {
-      "timestamp": "2025-11-19T10:14:10.274661",
-      "user_message": "什么是光合作用",
-      "method": "rule_engine",
-      "tokens_used": 0,
-      "results": [
-        {
-          "intent": "explain_request",
-          "topic": "光合作用",
-          "confidence": 0.95,
-          "parameters": {}
-        }
-      ]
-    },
-    {
-      "timestamp": "2025-11-19T10:14:20.325823",
-      "user_message": "出题目",
-      "method": "rule_engine",
-      "tokens_used": 0,
-      "results": [
-        {
-          "intent": "quiz_request",
-          "topic": null,
-          "confidence": 0.95,
-          "parameters": {}
-        }
-      ]
-    },
-    {
-      "timestamp": "2025-11-19T10:14:23.361474",
-      "user_message": "生成光合作用的题目",
-      "method": "rule_engine",
-      "tokens_used": 0,
-      "results": [
-        {
-          "intent": "quiz_request",
-          "topic": "光合作用",
-          "confidence": 0.95,
-          "parameters": {}
-        }
-      ]
-    },
     {
       "timestamp": "2025-11-19T11:40:01.999629",
       "user_message": "出题目",
@@ -156,11 +98,69 @@
           "parameters": {}
         }
       ]
+    },
+    {
+      "timestamp": "2025-11-19T13:54:19.466478",
+      "user_message": "什么是光合作用",
+      "method": "rule_engine",
+      "tokens_used": 0,
+      "results": [
+        {
+          "intent": "explain_request",
+          "topic": "光合作用",
+          "confidence": 0.95,
+          "parameters": {}
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-11-19T13:55:13.270263",
+      "user_message": "什么是光合作用",
+      "method": "rule_engine",
+      "tokens_used": 0,
+      "results": [
+        {
+          "intent": "explain_request",
+          "topic": "光合作用",
+          "confidence": 0.95,
+          "parameters": {}
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-11-19T13:56:06.154500",
+      "user_message": "再出3道类似的题",
+      "method": "rule_engine",
+      "tokens_used": 0,
+      "results": [
+        {
+          "intent": "quiz_request",
+          "topic": "再 类似",
+          "confidence": 0.95,
+          "parameters": {
+            "quantity": 3
+          }
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-11-19T13:57:38.941029",
+      "user_message": "解释一下牛顿第二定律",
+      "method": "rule_engine",
+      "tokens_used": 0,
+      "results": [
+        {
+          "intent": "explain_request",
+          "topic": "牛顿第二定律",
+          "confidence": 0.95,
+          "parameters": {}
+        }
+      ]
     }
   ],
   "stats": {
-    "total_requests": 7,
-    "rule_based_success": 7,
+    "total_requests": 11,
+    "rule_based_success": 11,
     "llm_fallback": 0,
     "rule_success_rate": "100.0%"
   }
