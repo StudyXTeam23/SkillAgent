@@ -741,18 +741,12 @@ function handleStreamChunk(responseId, data) {
             if (statusIcon) {
                 statusIcon.textContent = '⏳';
             }
-        }
-        
-        // 🆕 重置thinking和content区域（为新步骤准备）
-        if (thinkingEl) {
-            thinkingEl.textContent = '';
-        }
-        if (contentTextEl) {
-            contentTextEl.textContent = '';
-        }
-        // 隐藏之前的content区域
-        if (contentSection) {
-            contentSection.classList.add('hidden');
+            
+            // 🆕 显示该步骤的thinking容器
+            const stepThinkingContainer = document.getElementById(`plan-step-${data.step_order}-thinking-container`);
+            if (stepThinkingContainer) {
+                stepThinkingContainer.classList.remove('hidden');
+            }
         }
     }
     else if (data.type === 'step_done') {
@@ -796,22 +790,53 @@ function handleStreamChunk(responseId, data) {
         }
     } 
     else if (data.type === 'thinking') {
-        // 实时追加思考内容
-        // 首次thinking到达时，显示thinking区域
+        // 🆕 将thinking追加到对应步骤的thinking区域
+        // 从statusEl获取当前步骤编号
+        const statusText = statusEl?.querySelector('span')?.textContent || '';
+        const stepMatch = statusText.match(/Step (\d+)\//);
+        const currentStep = stepMatch ? parseInt(stepMatch[1]) : null;
+        
+        if (currentStep) {
+            const stepThinkingEl = document.getElementById(`plan-step-${currentStep}-thinking`);
+            if (stepThinkingEl) {
+                // 累积文本
+                stepThinkingEl.textContent += data.text;
+                
+                // 简单的Markdown渲染：**粗体**
+                let renderedText = stepThinkingEl.textContent
+                    .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold text-text-light-primary dark:text-text-dark-primary">$1</strong>');
+                
+                stepThinkingEl.innerHTML = renderedText;
+                
+                // LaTeX渲染（KaTeX）
+                if (typeof renderMathInElement !== 'undefined') {
+                    try {
+                        renderMathInElement(stepThinkingEl, {
+                            delimiters: [
+                                {left: '$$', right: '$$', display: true},
+                                {left: '$', right: '$', display: false},
+                                {left: '\\[', right: '\\]', display: true},
+                                {left: '\\(', right: '\\)', display: false}
+                            ],
+                            throwOnError: false
+                        });
+                    } catch (e) {
+                        console.warn('LaTeX rendering error:', e);
+                    }
+                }
+            }
+        }
+        
+        // 也保留到独立的thinking区域（如果需要）
         if (thinkingSection && thinkingSection.classList.contains('hidden')) {
             thinkingSection.classList.remove('hidden');
         }
         if (thinkingEl) {
-            // 🆕 累积文本并渲染Markdown + LaTeX
             thinkingEl.textContent += data.text;
-            
-            // 简单的Markdown渲染：**粗体**
             let renderedText = thinkingEl.textContent
                 .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold text-text-light-primary dark:text-text-dark-primary">$1</strong>');
-            
             thinkingEl.innerHTML = renderedText;
             
-            // 🆕 LaTeX渲染（KaTeX）
             if (typeof renderMathInElement !== 'undefined') {
                 try {
                     renderMathInElement(thinkingEl, {
@@ -827,9 +852,9 @@ function handleStreamChunk(responseId, data) {
                     console.warn('LaTeX rendering error:', e);
                 }
             }
-            
-            scrollToBottom();
         }
+        
+        scrollToBottom();
     } 
     else if (data.type === 'content') {
         // 🆕 实时显示content文本（流式打字效果）
@@ -945,7 +970,7 @@ function removeLoadingMessage() {
 }
 
 // 渲染 QuizCard
-// 🆕 渲染Plan预览卡片
+// 🆕 渲染Plan预览卡片（每个步骤带独立的thinking区域）
 function renderPlanPreview(topic, stepsPreview, totalSteps) {
     const stepsHtml = stepsPreview.map((step, idx) => {
         const stepNumber = step.step_order;
@@ -954,42 +979,74 @@ function renderPlanPreview(topic, stepsPreview, totalSteps) {
         
         return `
             <div id="plan-step-${stepNumber}" 
-                 class="plan-step-item flex items-start gap-4 p-4 rounded-lg border-2 border-border-light dark:border-border-dark transition-all duration-300">
-                <!-- 步骤编号和状态 -->
-                <div class="flex flex-col items-center gap-2">
-                    <div class="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                        <span class="text-lg font-bold text-primary">${stepNumber}</span>
+                 class="plan-step-item rounded-lg border-2 border-border-light dark:border-border-dark transition-all duration-300 overflow-hidden">
+                <!-- 步骤头部 -->
+                <div class="flex items-start gap-4 p-4">
+                    <!-- 步骤编号和状态 -->
+                    <div class="flex flex-col items-center gap-2">
+                        <div class="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                            <span class="text-lg font-bold text-primary">${stepNumber}</span>
+                        </div>
+                        <div class="step-status-icon text-2xl">⏸️</div>
                     </div>
-                    <div class="step-status-icon text-2xl">⏸️</div>
+                    
+                    <!-- 步骤内容 -->
+                    <div class="flex-1 min-w-0">
+                        <h4 class="text-lg font-semibold text-text-light-primary dark:text-text-dark-primary mb-2">
+                            ${escapeHtml(step.step_name)}
+                        </h4>
+                        ${step.step_description ? `
+                            <p class="text-sm text-text-light-secondary dark:text-text-dark-secondary mb-2">
+                                ${escapeHtml(step.step_description)}
+                            </p>
+                        ` : ''}
+                        <div class="flex items-center gap-2 text-xs text-text-light-secondary dark:text-text-dark-secondary">
+                            <span class="px-2 py-1 rounded-full bg-gray-100 dark:bg-gray-800">
+                                ${escapeHtml(step.skill_id)}
+                            </span>
+                        </div>
+                    </div>
                 </div>
                 
-                <!-- 步骤内容 -->
-                <div class="flex-1 min-w-0">
-                    <h4 class="text-lg font-semibold text-text-light-primary dark:text-text-dark-primary mb-2">
-                        ${escapeHtml(step.step_name)}
-                    </h4>
-                    ${step.step_description ? `
-                        <p class="text-sm text-text-light-secondary dark:text-text-dark-secondary mb-2">
-                            ${escapeHtml(step.step_description)}
-                        </p>
-                    ` : ''}
-                    <div class="flex items-center gap-2 text-xs text-text-light-secondary dark:text-text-dark-secondary">
-                        <span class="px-2 py-1 rounded-full bg-gray-100 dark:bg-gray-800">
-                            ${escapeHtml(step.skill_id)}
-                        </span>
-                    </div>
+                <!-- 🆕 该步骤的Thinking区域（可折叠） -->
+                <div id="plan-step-${stepNumber}-thinking-container" class="hidden border-t border-border-light dark:border-border-dark bg-gray-50 dark:bg-gray-900/30">
+                    <details class="group">
+                        <summary class="flex items-center justify-between px-4 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                            <div class="flex items-center gap-2">
+                                <svg class="w-4 h-4 text-primary transition-transform group-open:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                                </svg>
+                                <span class="text-xs font-semibold text-text-light-primary dark:text-text-dark-primary">💭 思考过程</span>
+                            </div>
+                        </summary>
+                        <div class="px-4 py-3 border-t border-border-light dark:border-border-dark max-h-64 overflow-y-auto">
+                            <pre id="plan-step-${stepNumber}-thinking" class="whitespace-pre-wrap text-xs text-text-light-secondary dark:text-text-dark-secondary leading-relaxed"></pre>
+                        </div>
+                    </details>
                 </div>
                 
-                <!-- 连接线（不是最后一个步骤时显示） -->
-                ${!isLast ? `
-                    <div class="absolute left-10 top-20 w-0.5 h-12 bg-border-light dark:bg-border-dark"></div>
-                ` : ''}
+                <!-- 🆕 该步骤的Content区域（可折叠） -->
+                <div id="plan-step-${stepNumber}-content-container" class="hidden border-t border-border-light dark:border-border-dark bg-green-50/30 dark:bg-green-900/10">
+                    <details class="group">
+                        <summary class="flex items-center justify-between px-4 py-2 cursor-pointer hover:bg-green-100 dark:hover:bg-green-900/20 transition-colors">
+                            <div class="flex items-center gap-2">
+                                <svg class="w-4 h-4 text-green-600 transition-transform group-open:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                                </svg>
+                                <span class="text-xs font-semibold text-green-700 dark:text-green-400">✍️ JSON内容</span>
+                            </div>
+                        </summary>
+                        <div class="px-4 py-3 border-t border-border-light dark:border-border-dark max-h-64 overflow-y-auto">
+                            <pre id="plan-step-${stepNumber}-content" class="whitespace-pre-wrap text-xs font-mono text-text-light-primary dark:text-text-dark-primary leading-relaxed"></pre>
+                        </div>
+                    </details>
+                </div>
             </div>
         `;
     }).join('');
     
     return `
-        <div class="w-full max-w-3xl mb-6">
+        <div class="w-full max-w-3xl">
             <div class="border-2 border-primary/30 rounded-xl overflow-hidden bg-gradient-to-br from-blue-50/50 to-purple-50/50 dark:from-blue-900/10 dark:to-purple-900/10">
                 <!-- Header -->
                 <div class="px-6 py-4 bg-primary/5 border-b border-primary/20">
@@ -1009,7 +1066,7 @@ function renderPlanPreview(topic, stepsPreview, totalSteps) {
                 </div>
                 
                 <!-- Steps -->
-                <div class="p-6 space-y-4 relative">
+                <div class="p-6 space-y-4">
                     ${stepsHtml}
                 </div>
                 
