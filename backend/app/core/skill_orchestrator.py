@@ -107,7 +107,8 @@ class SkillOrchestrator:
                 return
             
             # Step 4: 加载 prompt
-            prompt = self._load_prompt(skill, params)
+            prompt_content = self._load_prompt(skill)
+            prompt = self._format_prompt(prompt_content, params, context)
             
             # Step 5: 流式调用 LLM
             yield {
