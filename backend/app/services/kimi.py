@@ -76,7 +76,7 @@ class KimiClient:
                 "content": (
                     "你是 Kimi，由 Moonshot AI 提供的人工智能助手。\n\n"
                     "⚡ 思考策略：\n"
-                    "- 快速高效思考，控制在5-10秒内完成\n"
+                    "- 快速高效思考，控制在10-20秒内完成\n"
                     "- 思考过程简洁明了，避免冗长重复\n"
                     "- 直奔核心要点，省略不必要的细节\n"
                     "- 优先输出高质量内容，而非长篇思考\n\n"
@@ -146,11 +146,11 @@ class KimiClient:
         self,
         prompt: str,
         model: Optional[str] = None,
-        temperature: float = 0.8,  # ⚡⚡ 激进优化：默认0.8加快生成速度（原0.7）
-        max_tokens: int = 4096,
+        temperature: float = 1.0,  # ⚡⚡⚡ 参照在线版：1.0最大化速度
+        max_tokens: int = 131072,  # ⚡⚡⚡ 参照在线版：131072
         thinking_budget: Optional[int] = None,
         return_thinking: bool = True,
-        buffer_size: int = 30  # ⚡⚡ 降低缓冲（原50），打字机效果
+        buffer_size: int = 5  # ⚡⚡⚡ 极小缓冲（30→5），真·打字机效果
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """
         生成内容（流式 + 优化缓冲）
@@ -196,12 +196,16 @@ class KimiClient:
         reasoning_buffer = []
         
         try:
-            # Kimi 流式 API
+            # Kimi 流式 API（参照在线版配置）
             stream = await self.async_client.chat.completions.create(
                 model=model_to_use,
                 messages=messages,
                 temperature=temperature,
                 max_tokens=max_tokens,
+                top_p=1.0,  # ⚡ 在线版参数
+                top_k=50,  # ⚡ 在线版参数
+                presence_penalty=0,  # ⚡ 在线版参数
+                frequency_penalty=0,  # ⚡ 在线版参数
                 stream=True
             )
             
