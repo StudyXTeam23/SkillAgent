@@ -776,13 +776,13 @@ async def agent_chat_stream(
             await asyncio.sleep(0.1)
             
             # 获取 memory context
-            memory_summary = memory_manager.get_memory_summary(
+            memory_summary = await memory_manager.generate_memory_summary(
                 user_id=request.user_id,
                 session_id=request.session_id
             )
             
             # 获取 last artifact summary
-            session_context = memory_manager.get_session_context(request.session_id)
+            session_context = await memory_manager.get_session_context(request.session_id)
             last_artifact_summary = None
             if session_context and hasattr(session_context, 'last_artifact'):
                 last_artifact_summary = f"User just interacted with: {session_context.last_artifact}"

@@ -172,6 +172,25 @@ error_handling:
     on_total_failure:
       message: "学习包生成失败，请稍后重试或尝试更具体的主题"
 
+# ============= 输出 Schema =============
+output_schema:
+  artifact_type: "learning_bundle"
+  properties:
+    bundle_id:
+      type: string
+      description: "学习包唯一标识"
+    components:
+      type: array
+      description: "包含的学习组件（explain/flashcard/quiz）"
+      items:
+        type: object
+    subject:
+      type: string
+      description: "学科"
+    topic:
+      type: string
+      description: "主题"
+
 # ============= AI Model 配置 =============
 # Plan Skill 本身不直接调用 LLM，但子 skills 会使用各自的配置
 models:
