@@ -100,8 +100,8 @@ class SkillOrchestrator:
                 logger.info(f"🌊 Executing Plan Skill in streaming mode")
                 
                 # 加载用户画像和会话上下文
-                user_profile = self.memory_manager.load_profile(user_id)
-                session_context = self.memory_manager.load_session(session_id)
+                user_profile = await self.memory_manager.get_user_profile(user_id)
+                session_context = await self.memory_manager.get_session_context(session_id)
                 
                 # 构建输入参数
                 context = await self._build_context(skill, user_id, session_id)

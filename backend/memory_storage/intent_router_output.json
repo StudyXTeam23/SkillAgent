@@ -1,67 +1,11 @@
 {
   "description": "Intent Router 实时输出记录 (Phase 3 架构)",
-  "latest": {
-    "timestamp": "2025-11-19T17:21:31.142962",
-    "user_message": "牛顿第二定律的学习包",
-    "method": "rule_engine",
-    "tokens_used": 0,
-    "results": [
-      {
-        "intent": "learning_bundle",
-        "topic": "牛顿第二定律",
-        "confidence": 0.95,
-        "parameters": {}
-      }
-    ]
-  },
-  "history": [
-    {
-      "timestamp": "2025-11-19T17:20:20.732716",
-      "user_message": "帮我理解二战的起因",
-      "method": "rule_engine",
-      "tokens_used": 0,
-      "results": [
-        {
-          "intent": "explain_request",
-          "topic": "理解二战 起因",
-          "confidence": 0.95,
-          "parameters": {}
-        }
-      ]
-    },
-    {
-      "timestamp": "2025-11-19T17:21:17.615953",
-      "user_message": "帮我生成二战的学习包",
-      "method": "rule_engine",
-      "tokens_used": 0,
-      "results": [
-        {
-          "intent": "learning_bundle",
-          "topic": null,
-          "confidence": 0.95,
-          "parameters": {}
-        }
-      ]
-    },
-    {
-      "timestamp": "2025-11-19T17:21:31.142962",
-      "user_message": "牛顿第二定律的学习包",
-      "method": "rule_engine",
-      "tokens_used": 0,
-      "results": [
-        {
-          "intent": "learning_bundle",
-          "topic": "牛顿第二定律",
-          "confidence": 0.95,
-          "parameters": {}
-        }
-      ]
-    }
-  ],
+  "latest": {},
+  "history": [],
   "stats": {
-    "total_requests": 3,
-    "rule_based_success": 3,
+    "total_requests": 0,
+    "rule_based_success": 0,
     "llm_fallback": 0,
-    "rule_success_rate": "100.0%"
+    "rule_success_rate": "0.0%"
   }
 }
