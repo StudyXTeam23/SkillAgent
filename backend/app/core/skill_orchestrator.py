@@ -86,7 +86,16 @@ class SkillOrchestrator:
                 return
             
             # 🔧 检测Plan Skill - Plan Skill不支持流式（暂时回退到传统模式）
-            if skill.skill_type == "plan":
+            logger.debug(f"🔍 Checking skill type: skill.id={skill.id}, skill.skill_type={skill.skill_type}")
+            
+            # 🔧 增强检测：检查skill_type或skill.id（防止skill_type未加载）
+            is_plan_skill = (
+                skill.skill_type == "plan" or 
+                skill.id == "learning_plan_skill" or
+                "plan" in skill.id.lower()
+            )
+            
+            if is_plan_skill:
                 logger.warning(f"⚠️  Plan Skill不支持流式模式，回退到传统模式")
                 yield {
                     "type": "status",
