@@ -81,24 +81,12 @@ class GeminiClient:
         }
         
         # 🆕 添加思考配置（Gemini 2.5 Flash）
-        # 注意：ThinkingConfig 可能在某些 SDK 版本中不可用，暂时禁用
         if thinking_budget is not None and thinking_budget > 0:
-            try:
-                # 尝试使用 ThinkingConfig（如果可用）
-                if hasattr(types, 'ThinkingConfig'):
-                    config_kwargs["thinking_config"] = types.ThinkingConfig(
-                        thinking_budget=thinking_budget
-                    )
-                    logger.info(f"🧠 Thinking mode enabled: budget={thinking_budget} tokens")
-                else:
-                    # 尝试直接传递字典
-                    config_kwargs["thinking_config"] = {
-                        "thinking_budget": thinking_budget
-                    }
-                    logger.info(f"🧠 Thinking mode enabled (dict): budget={thinking_budget} tokens")
-            except Exception as e:
-                logger.warning(f"⚠️ Failed to enable thinking mode: {e}, continuing without it")
-                # 继续执行，不使用思考模式
+            config_kwargs["thinkingConfig"] = types.ThinkingConfig(
+                thinkingBudget=thinking_budget,  # 注意：使用 camelCase
+                includeThoughts=return_thinking  # 是否返回思考过程
+            )
+            logger.info(f"🧠 Thinking mode enabled: budget={thinking_budget} tokens, includeThoughts={return_thinking}")
         
         config = types.GenerateContentConfig(**config_kwargs)
         
