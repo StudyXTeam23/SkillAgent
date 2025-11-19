@@ -215,7 +215,26 @@ class SkillOrchestrator:
                     }
                     return
             
-            # Step 7: 更新 memory
+            # Step 7: 检测内容类型（使用和传统API相同的逻辑）
+            content_type = "unknown"
+            if "quiz_set_id" in parsed_content or "questions" in parsed_content:
+                content_type = "quiz_set"
+            elif "concept" in parsed_content or "explanation" in parsed_content:
+                content_type = "explanation"
+            elif "flashcard_set_id" in parsed_content or "cards" in parsed_content:
+                content_type = "flashcard_set"
+            elif "notes_id" in parsed_content or "structured_notes" in parsed_content:
+                content_type = "notes"
+            elif "bundle_id" in parsed_content or "components" in parsed_content:
+                content_type = "learning_bundle"
+            elif "mindmap_id" in parsed_content or "root" in parsed_content:
+                content_type = "mindmap"
+            elif "error" in parsed_content:
+                content_type = "error"
+            
+            logger.info(f"✅ Detected content_type: {content_type}")
+            
+            # Step 8: 更新 memory
             # 更新 current_topic
             if params.get("topic"):
                 session_ctx = await self.memory_manager.get_session_context(session_id)
@@ -229,18 +248,14 @@ class SkillOrchestrator:
             # 添加到 artifact history
             # 🔧 TODO: 实现artifact保存逻辑
             # 流式模式下先跳过artifact保存，专注于内容生成
-            artifact_type = "unknown"
-            if skill.output_schema and isinstance(skill.output_schema, dict):
-                artifact_type = skill.output_schema.get("artifact_type", "unknown")
-            
-            logger.info(f"ℹ️  Skipping artifact save in stream mode (type: {artifact_type})")
+            logger.info(f"ℹ️  Skipping artifact save in stream mode (type: {content_type})")
             
             # 完成
             yield {
                 "type": "done",
                 "thinking": full_thinking,
                 "content": parsed_content,
-                "content_type": artifact_type
+                "content_type": content_type
             }
             
             logger.info(f"✅ Stream orchestration complete for {skill.id}")

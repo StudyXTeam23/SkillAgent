@@ -178,7 +178,7 @@ class GeminiClient:
         
         Args:
             prompt: 提示词
-            model: 模型名称，默认 gemini-2.5-flash
+            model: 模型名称，默认 gemini-2.5-flash-lite
             response_format: 响应格式，"text" 或 "json"
             max_tokens: 最大 token 数
             temperature: 温度参数（0-1），越高越随机
@@ -205,7 +205,7 @@ class GeminiClient:
             "max_output_tokens": max_tokens,
         }
         
-        # 🆕 添加思考配置（Gemini 2.5 Flash）
+        # 🆕 添加思考配置（Gemini 2.5 Flash Lite）
         if thinking_budget is not None and thinking_budget > 0:
             config_kwargs["thinkingConfig"] = types.ThinkingConfig(
                 thinkingBudget=thinking_budget,  # 注意：使用 camelCase

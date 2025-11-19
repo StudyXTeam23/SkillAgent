@@ -700,20 +700,26 @@ function handleStreamChunk(responseId, data) {
             finalEl.classList.remove('hidden');
             const contentType = data.content_type;
             
+            // ⚠️ 注意：流式API的thinking是单独传递的，需要注入到content中
+            // 这样现有的渲染函数才能访问到_thinking字段
+            const contentWithThinking = {...data.content, _thinking: data.thinking};
+            
             if (contentType === 'quiz_set' && data.content.questions) {
-                finalEl.innerHTML = renderQuizCard(data.content);
+                finalEl.innerHTML = renderQuizCard(contentWithThinking);
             } else if (contentType === 'explanation' && data.content.concept) {
-                finalEl.innerHTML = renderExplainCard(data.content);
+                finalEl.innerHTML = renderExplainCard(contentWithThinking);
             } else if (contentType === 'flashcard_set' && data.content.cards) {
-                finalEl.innerHTML = renderFlashcardSet(data.content);
+                finalEl.innerHTML = renderFlashcardSet(contentWithThinking);
             } else if (contentType === 'learning_bundle' && data.content.components) {
-                finalEl.innerHTML = renderLearningBundle(data.content);
+                finalEl.innerHTML = renderLearningBundle(contentWithThinking);
             } else if (contentType === 'mindmap' && data.content.root) {
-                finalEl.innerHTML = renderMindMapCard(data.content);
+                finalEl.innerHTML = renderMindMapCard(contentWithThinking);
             } else if (contentType === 'notes' && data.content.structured_notes) {
-                finalEl.innerHTML = renderNotesCard(data.content);
+                finalEl.innerHTML = renderNotesCard(contentWithThinking);
             } else {
-                finalEl.innerHTML = `<pre class="text-sm">${JSON.stringify(data.content, null, 2)}</pre>`;
+                // 未知类型，显示JSON
+                finalEl.innerHTML = renderThinkingProcess(data.thinking) + 
+                    `<pre class="text-sm">${JSON.stringify(data.content, null, 2)}</pre>`;
             }
         }
         
