@@ -40,25 +40,32 @@ class GeminiClient:
     async def generate(
         self,
         prompt: str,
-        model: str = "gemini-2.0-flash-exp",  # 使用可用的模型
+        model: str = "gemini-2.5-flash",  # 🆕 使用 2.5 Flash 支持思考模型
         response_format: str = "text",
         max_tokens: int = 2000,
         temperature: float = 0.7,
-        max_retries: int = 3
-    ) -> str:
+        max_retries: int = 3,
+        thinking_budget: Optional[int] = 1024,  # 🆕 思考预算，默认 1024 tokens
+        return_thinking: bool = True  # 🆕 是否返回思考过程
+    ) -> Dict[str, Any]:
         """
-        生成文本内容（异步）
+        生成文本内容（异步）- 🆕 支持思考模型
         
         Args:
             prompt: 提示词
-            model: 模型名称，默认 gemini-1.5-flash
+            model: 模型名称，默认 gemini-2.5-flash
             response_format: 响应格式，"text" 或 "json"
             max_tokens: 最大 token 数
             temperature: 温度参数（0-1），越高越随机
             max_retries: 最大重试次数
+            thinking_budget: 思考预算（tokens），0 = 无思考，1024 = 中等，最大 24576
+            return_thinking: 是否返回思考过程
         
         Returns:
-            str: 生成的文本或 JSON 字符串
+            Dict[str, Any]: 包含以下键：
+                - "content": 生成的文本或 JSON 字符串
+                - "thinking": 思考过程（如果有）
+                - "usage": Token 使用统计
         
         Raises:
             Exception: API 调用失败
@@ -68,10 +75,19 @@ class GeminiClient:
             prompt = self._enhance_json_prompt(prompt)
         
         # 配置生成参数
-        config = types.GenerateContentConfig(
-            temperature=temperature,
-            max_output_tokens=max_tokens,
-        )
+        config_kwargs = {
+            "temperature": temperature,
+            "max_output_tokens": max_tokens,
+        }
+        
+        # 🆕 添加思考配置（Gemini 2.5 Flash）
+        if thinking_budget is not None and thinking_budget >= 0:
+            config_kwargs["thinking_config"] = types.ThinkingConfig(
+                thinking_budget=thinking_budget
+            )
+            logger.info(f"🧠 Thinking mode enabled: budget={thinking_budget} tokens")
+        
+        config = types.GenerateContentConfig(**config_kwargs)
         
         # 重试逻辑
         for attempt in range(max_retries):
@@ -93,17 +109,36 @@ class GeminiClient:
                 result = response.text.strip()
                 elapsed = time.time() - start_time
                 
+                # 🆕 提取思考过程
+                thinking_process = None
+                if return_thinking:
+                    thinking_process = self._extract_thinking(response)
+                
                 # ============= Token 使用统计 =============
                 usage_metadata = getattr(response, 'usage_metadata', None)
+                usage_stats = {}
+                
                 if usage_metadata:
                     input_tokens = getattr(usage_metadata, 'prompt_token_count', 0)
                     output_tokens = getattr(usage_metadata, 'candidates_token_count', 0)
                     total_tokens = getattr(usage_metadata, 'total_token_count', 0)
+                    thoughts_tokens = getattr(usage_metadata, 'thoughts_token_count', 0)  # 🆕 思考 tokens
                     
-                    logger.info(
-                        f"📊 Token Usage | Input: {input_tokens:,} | Output: {output_tokens:,} | "
-                        f"Total: {total_tokens:,} | Time: {elapsed:.2f}s | Model: {model}"
+                    usage_stats = {
+                        "input_tokens": input_tokens,
+                        "output_tokens": output_tokens,
+                        "thoughts_tokens": thoughts_tokens,
+                        "total_tokens": total_tokens
+                    }
+                    
+                    log_msg = (
+                        f"📊 Token Usage | Input: {input_tokens:,} | Output: {output_tokens:,}"
                     )
+                    if thoughts_tokens > 0:
+                        log_msg += f" | Thoughts: {thoughts_tokens:,} 🧠"
+                    log_msg += f" | Total: {total_tokens:,} | Time: {elapsed:.2f}s | Model: {model}"
+                    
+                    logger.info(log_msg)
                 else:
                     logger.info(f"✅ Gemini response received in {elapsed:.2f}s, length={len(result)}")
                 
@@ -129,7 +164,12 @@ class GeminiClient:
                         else:
                             raise json_err
                 
-                return result
+                # 🆕 返回字典格式（包含思考过程）
+                return {
+                    "content": result,
+                    "thinking": thinking_process,
+                    "usage": usage_stats
+                }
                 
             except json.JSONDecodeError as e:
                 logger.warning(f"⚠️ JSON parsing failed (attempt {attempt + 1}/{max_retries}): {e}")
@@ -377,6 +417,45 @@ Your JSON response:"""
         except Exception as e:
             logger.error(f"❌ Failed to get model info: {e}")
             return {"error": str(e)}
+    
+    def _extract_thinking(self, response) -> Optional[str]:
+        """
+        从 Gemini 响应中提取思考过程
+        
+        Args:
+            response: Gemini API 响应对象
+        
+        Returns:
+            Optional[str]: 思考过程文本，如果没有则返回 None
+        """
+        try:
+            # 尝试从响应中提取 candidates
+            if hasattr(response, 'candidates') and response.candidates:
+                candidate = response.candidates[0]
+                
+                # 检查 content.parts
+                if hasattr(candidate, 'content') and hasattr(candidate.content, 'parts'):
+                    for part in candidate.content.parts:
+                        # 查找 thought 类型的 part
+                        if hasattr(part, 'thought') and part.thought:
+                            logger.info(f"🧠 Thinking process found: {len(part.thought)} chars")
+                            return part.thought
+                        
+                        # 备选方案：检查 part 的其他属性
+                        if hasattr(part, 'text') and part.text:
+                            # 如果 text 包含思考标记
+                            text = part.text
+                            if text.startswith("<thinking>") or text.startswith("思考过程:"):
+                                logger.info(f"🧠 Thinking process found in text: {len(text)} chars")
+                                return text
+            
+            # 如果没有找到，返回 None
+            logger.debug("ℹ️  No thinking process found in response")
+            return None
+            
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to extract thinking process: {e}")
+            return None
     
     async def close(self):
         """关闭异步客户端"""

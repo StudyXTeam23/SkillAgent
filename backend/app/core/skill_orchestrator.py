@@ -303,9 +303,23 @@ class SkillOrchestrator:
         
         # Step 4: 执行技能
         try:
-            result_json = await self._execute_skill(skill, params, context)
-            # result_json 是 JSON 字符串，需要解析为字典
+            response = await self._execute_skill(skill, params, context)
+            # 🆕 response 是字典: {"content": str, "thinking": str, "usage": dict}
+            
+            # 提取内容
+            result_json = response.get("content", response) if isinstance(response, dict) else response
+            thinking = response.get("thinking") if isinstance(response, dict) else None
+            usage = response.get("usage", {}) if isinstance(response, dict) else {}
+            
+            # 解析 JSON
             result = json.loads(result_json) if isinstance(result_json, str) else result_json
+            
+            # 🆕 将思考过程添加到结果中
+            if thinking:
+                result["_thinking"] = thinking
+                result["_usage"] = usage
+                logger.info(f"🧠 Thinking process included: {len(thinking)} chars")
+            
         except (json.JSONDecodeError, ValueError) as e:
             logger.error(f"❌ Failed to parse skill result JSON: {e}")
             return self._create_error_response("json_parse_error", f"Invalid JSON response: {str(e)}")
@@ -773,10 +787,21 @@ class SkillOrchestrator:
         }
         
         # 执行 skill
-        result_json = await self._execute_skill(skill, input_params, context)
+        response = await self._execute_skill(skill, input_params, context)
+        
+        # 🆕 response 是字典: {"content": str, "thinking": str, "usage": dict}
+        # 提取内容
+        result_json = response.get("content", response) if isinstance(response, dict) else response
+        thinking = response.get("thinking") if isinstance(response, dict) else None
+        usage = response.get("usage", {}) if isinstance(response, dict) else {}
         
         # 解析结果
         result = json.loads(result_json) if isinstance(result_json, str) else result_json
+        
+        # 🆕 将思考过程添加到结果中
+        if thinking:
+            result["_thinking"] = thinking
+            result["_usage"] = usage
         
         return result
     
@@ -787,7 +812,7 @@ class SkillOrchestrator:
         context: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
-        执行技能（调用 Gemini API）
+        执行技能（调用 Gemini API）- 🆕 支持思考模型
         
         Args:
             skill: Skill 定义
@@ -795,7 +820,10 @@ class SkillOrchestrator:
             context: 上下文
         
         Returns:
-            技能执行结果
+            Dict[str, Any]: 包含以下键：
+                - "content": 生成的内容
+                - "thinking": 思考过程（如果有）
+                - "usage": Token 使用统计
         """
         # 加载 prompt 模板
         prompt_content = self._load_prompt(skill)
@@ -804,12 +832,22 @@ class SkillOrchestrator:
         full_prompt = self._format_prompt(prompt_content, params, context)
         
         # 调用 Gemini
-        model = skill.models.get("primary", "gemini-2.0-flash-exp")
+        model = skill.models.get("primary", "gemini-2.5-flash")  # 🆕 使用 2.5 Flash
+        thinking_budget = skill.config.get("thinking_budget", 1024)  # 🆕 从 skill 配置读取
         
-        logger.debug(f"🤖 Calling Gemini model: {model}")
-        result = await self.gemini_client.generate_json(full_prompt, model=model)
+        logger.debug(f"🤖 Calling Gemini model: {model} (thinking_budget={thinking_budget})")
         
-        return result
+        # 🆕 使用 generate 方法（返回字典）
+        response = await self.gemini_client.generate(
+            prompt=full_prompt,
+            model=model,
+            response_format="json",
+            thinking_budget=thinking_budget,
+            return_thinking=True
+        )
+        
+        # response 是字典: {"content": str, "thinking": str, "usage": dict}
+        return response
     
     def _load_prompt(self, skill: SkillDefinition) -> str:
         """
