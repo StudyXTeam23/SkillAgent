@@ -89,9 +89,8 @@ models:
   primary: "moonshotai/kimi-k2-thinking"  # 🆕 使用 Kimi thinking 模型
   fallback: "moonshotai/kimi-k2-thinking"
 
-thinking_budget: 0  # ⚡⚡⚡ 关闭真实thinking模式，使用伪思考（prompt引导）
+thinking_budget: 256  # ⚡⚡ 激进优化：降低至256（原512），快速响应模式
 temperature: 0.8  # ⚡⚡ 激进优化：提高至0.8，最大化生成速度
-use_pseudo_thinking: true  # 🆕 启用伪思考模式（通过prompt引导）
 
 context:
   need_user_memory: true
