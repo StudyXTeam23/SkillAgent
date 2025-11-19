@@ -263,7 +263,7 @@ class GeminiClient:
                     try:
                         # 验证是否为有效 JSON
                         json.loads(result)
-                        return result
+                        # ✅ 验证成功，继续到最后返回字典格式
                     except json.JSONDecodeError as json_err:
                         # JSON解析失败，尝试修复
                         if attempt == max_retries - 1:
@@ -272,7 +272,7 @@ class GeminiClient:
                                 fixed_result = self._try_fix_json(result)
                                 json.loads(fixed_result)
                                 logger.info(f"✅ JSON auto-fixed successfully")
-                                return fixed_result
+                                result = fixed_result  # 🔧 修复：更新result，不直接返回
                             except:
                                 logger.error(f"❌ Failed to fix JSON")
                                 raise ValueError(f"Invalid JSON response: {str(json_err)}")
