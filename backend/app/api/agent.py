@@ -566,23 +566,38 @@ async def agent_chat(
             # 构建响应
             if len(all_results) == 1:
                 # 单个结果
-                # 🆕 支持 Orchestrator 返回的特殊响应（onboarding/clarification）
                 result = all_results[0]
-                response_content = result.get("response_content") or result.get("content", {})
                 
-                # 🔍 调试：检查thinking是否存在
-                if "_thinking" in response_content:
-                    logger.info(f"🧠 Response contains thinking: {len(response_content['_thinking'])} chars")
+                # 🔧 处理错误响应（orchestrator返回错误时）
+                if result.get("success") == False:
+                    logger.error(f"❌ Orchestrator returned error: {result.get('error')} - {result.get('message')}")
+                    response_content = {
+                        "error": result.get("error", "unknown_error"),
+                        "message": result.get("message", "An unknown error occurred")
+                    }
+                    content_type = "error"
+                    intent = result.get("intent", "unknown")
+                    skill_id = result.get("skill_id", "unknown")
                 else:
-                    logger.warning(f"⚠️  Response missing _thinking field. Keys: {list(response_content.keys())}")
+                    # 🆕 支持 Orchestrator 返回的特殊响应（onboarding/clarification）
+                    response_content = result.get("response_content") or result.get("content", {})
+                    content_type = result.get("content_type", "unknown")
+                    intent = result.get("intent", "unknown")
+                    skill_id = result.get("skill_id", "unknown")
+                    
+                    # 🔍 调试：检查thinking是否存在
+                    if "_thinking" in response_content:
+                        logger.info(f"🧠 Response contains thinking: {len(response_content['_thinking'])} chars")
+                    else:
+                        logger.warning(f"⚠️  Response missing _thinking field. Keys: {list(response_content.keys())}")
                 
                 response = AgentChatResponse(
                     user_id=request.user_id,
                     session_id=request.session_id,
                     response_content=response_content,
-                    content_type=result.get("content_type", "unknown"),
-                    intent=result.get("intent", "unknown"),
-                    skill_id=result.get("skill_id", "unknown"),
+                    content_type=content_type,
+                    intent=intent,
+                    skill_id=skill_id,
                     processing_time_ms=int(processing_time * 1000)
                 )
             else:
