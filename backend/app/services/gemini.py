@@ -89,11 +89,18 @@ class GeminiClient:
             content_accumulated = []
             
             async for chunk in stream:
+                logger.debug(f"🔍 Received chunk: {type(chunk)}")
+                
                 if hasattr(chunk, 'candidates') and chunk.candidates:
                     candidate = chunk.candidates[0]
+                    logger.debug(f"🔍 Candidate has content: {hasattr(candidate, 'content')}")
                     
                     if hasattr(candidate, 'content') and candidate.content:
-                        if not hasattr(candidate.content, 'parts') or not candidate.content.parts:
+                        has_parts = hasattr(candidate.content, 'parts')
+                        parts_count = len(candidate.content.parts) if has_parts and candidate.content.parts else 0
+                        logger.debug(f"🔍 Content has {parts_count} parts")
+                        
+                        if not has_parts or not candidate.content.parts:
                             logger.warning(f"⚠️  Chunk has content but no parts: {candidate.content}")
                             continue
                             
@@ -102,37 +109,29 @@ class GeminiClient:
                             # Gemini API: 当有thought属性时，表示这是thinking部分
                             has_thought_attr = hasattr(part, 'thought')
                             
-                            if has_thought_attr:
-                                # 这是thinking部分
-                                thought = part.thought
-                                if isinstance(thought, str) and thought:
-                                    # thought是字符串，直接使用
-                                    thinking_accumulated.append(thought)
-                                    yield {
-                                        "type": "thinking",
-                                        "text": thought,
-                                        "accumulated": "".join(thinking_accumulated)
-                                    }
-                                elif thought is True and hasattr(part, 'text'):
-                                    # thought是True，实际内容在text中
-                                    text = part.text
-                                    if text:
-                                        thinking_accumulated.append(text)
-                                        yield {
-                                            "type": "thinking",
-                                            "text": text,
-                                            "accumulated": "".join(thinking_accumulated)
-                                        }
-                            else:
-                                # 没有thought属性，这是content部分
-                                if hasattr(part, 'text') and part.text:
-                                    text = part.text
-                                    content_accumulated.append(text)
-                                    yield {
-                                        "type": "content",
-                                        "text": text,
-                                        "accumulated": "".join(content_accumulated)
-                                    }
+                            # 🔧 关键修复：当thought=True时，表示这是带thinking的常规内容
+                            # 只有thought是非空字符串时才是纯thinking部分
+                            thought = getattr(part, 'thought', None)
+                            text = getattr(part, 'text', None)
+                            
+                            if isinstance(thought, str) and thought:
+                                # thought是非空字符串，这是纯thinking内容
+                                logger.debug(f"🧠 Found pure thinking part: {len(thought)} chars")
+                                thinking_accumulated.append(thought)
+                                yield {
+                                    "type": "thinking",
+                                    "text": thought,
+                                    "accumulated": "".join(thinking_accumulated)
+                                }
+                            elif text:
+                                # 有text内容，这是实际输出（即使thought=True也算content）
+                                logger.info(f"📝 Content chunk: {len(text)} chars, preview: {text[:50]}")
+                                content_accumulated.append(text)
+                                yield {
+                                    "type": "content",
+                                    "text": text,
+                                    "accumulated": "".join(content_accumulated)
+                                }
             
             # 完成标记
             yield {
