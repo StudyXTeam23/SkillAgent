@@ -156,7 +156,8 @@ class SkillOrchestrator:
             async for chunk in self.gemini_client.generate_stream(
                 prompt=prompt,
                 model=skill.models.get("primary", "gemini-2.5-flash-lite"),
-                thinking_budget=skill.thinking_budget or 1024
+                thinking_budget=skill.thinking_budget or 1024,
+                buffer_size=100  # 🆕 优化：100字符缓冲，减少碎片化和网络请求
             ):
                 # 累积数据
                 if chunk["type"] == "thinking":

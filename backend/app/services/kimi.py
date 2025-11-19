@@ -138,10 +138,11 @@ class KimiClient:
         temperature: float = 0.6,
         max_tokens: int = 4096,
         thinking_budget: Optional[int] = None,
-        return_thinking: bool = True
+        return_thinking: bool = True,
+        buffer_size: int = 50  # 🆕 缓冲区大小（字符数）
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """
-        生成内容（流式）
+        生成内容（流式 + 优化缓冲）
         
         Args:
             prompt: 提示词
@@ -150,6 +151,7 @@ class KimiClient:
             max_tokens: 最大 token 数
             thinking_budget: Thinking 预算
             return_thinking: 是否返回 thinking
+            buffer_size: 缓冲区大小（默认50字符，减少碎片化）
         
         Yields:
             Dict: {"type": "thinking|content|done|error", ...}
@@ -161,11 +163,15 @@ class KimiClient:
             {"role": "user", "content": prompt}
         ]
         
-        logger.info(f"🌊 Starting streaming generation: model={model_to_use}")
+        logger.info(f"🌊 Starting streaming generation: model={model_to_use}, buffer={buffer_size} chars")
         
         # 累加器
         content_accumulated = []
         reasoning_accumulated = []
+        
+        # 🆕 缓冲区（减少碎片化）
+        content_buffer = []
+        reasoning_buffer = []
         
         try:
             # Kimi 流式 API
@@ -186,24 +192,55 @@ class KimiClient:
                 # 提取 reasoning_content（Kimi 的 thinking）
                 reasoning_chunk = getattr(delta, 'reasoning_content', None)
                 if reasoning_chunk and isinstance(reasoning_chunk, str):
-                    logger.info(f"🧠 Reasoning chunk: {len(reasoning_chunk)} chars")
+                    reasoning_buffer.append(reasoning_chunk)
                     reasoning_accumulated.append(reasoning_chunk)
-                    yield {
-                        "type": "thinking",
-                        "text": reasoning_chunk,
-                        "accumulated": "".join(reasoning_accumulated)
-                    }
+                    
+                    # 🆕 缓冲区满了才发送
+                    buffered_text = "".join(reasoning_buffer)
+                    if len(buffered_text) >= buffer_size:
+                        logger.info(f"🧠 Reasoning buffer flush: {len(buffered_text)} chars")
+                        yield {
+                            "type": "thinking",
+                            "text": buffered_text,
+                            "accumulated": "".join(reasoning_accumulated)
+                        }
+                        reasoning_buffer = []
                 
                 # 提取 content
                 content_chunk = delta.content
                 if content_chunk and isinstance(content_chunk, str):
-                    logger.info(f"📝 Content chunk: {len(content_chunk)} chars")
+                    content_buffer.append(content_chunk)
                     content_accumulated.append(content_chunk)
-                    yield {
-                        "type": "content",
-                        "text": content_chunk,
-                        "accumulated": "".join(content_accumulated)
-                    }
+                    
+                    # 🆕 缓冲区满了才发送
+                    buffered_text = "".join(content_buffer)
+                    if len(buffered_text) >= buffer_size:
+                        logger.info(f"📝 Content buffer flush: {len(buffered_text)} chars")
+                        yield {
+                            "type": "content",
+                            "text": buffered_text,
+                            "accumulated": "".join(content_accumulated)
+                        }
+                        content_buffer = []
+            
+            # 🆕 发送剩余缓冲区内容
+            if reasoning_buffer:
+                buffered_text = "".join(reasoning_buffer)
+                logger.info(f"🧠 Reasoning final flush: {len(buffered_text)} chars")
+                yield {
+                    "type": "thinking",
+                    "text": buffered_text,
+                    "accumulated": "".join(reasoning_accumulated)
+                }
+            
+            if content_buffer:
+                buffered_text = "".join(content_buffer)
+                logger.info(f"📝 Content final flush: {len(buffered_text)} chars")
+                yield {
+                    "type": "content",
+                    "text": buffered_text,
+                    "accumulated": "".join(content_accumulated)
+                }
             
             # 完成
             full_thinking = "".join(reasoning_accumulated)
