@@ -1,7 +1,7 @@
 {
   "description": "Intent Router 实时输出记录 (Phase 3 架构)",
   "latest": {
-    "timestamp": "2025-11-19T13:57:38.941029",
+    "timestamp": "2025-11-19T14:03:15.581691",
     "user_message": "解释一下牛顿第二定律",
     "method": "rule_engine",
     "tokens_used": 0,
@@ -15,20 +15,6 @@
     ]
   },
   "history": [
-    {
-      "timestamp": "2025-11-19T11:40:01.999629",
-      "user_message": "出题目",
-      "method": "rule_engine",
-      "tokens_used": 0,
-      "results": [
-        {
-          "intent": "quiz_request",
-          "topic": null,
-          "confidence": 0.95,
-          "parameters": {}
-        }
-      ]
-    },
     {
       "timestamp": "2025-11-19T12:39:37.774676",
       "user_message": "什么是光合作用",
@@ -156,11 +142,25 @@
           "parameters": {}
         }
       ]
+    },
+    {
+      "timestamp": "2025-11-19T14:03:15.581691",
+      "user_message": "解释一下牛顿第二定律",
+      "method": "rule_engine",
+      "tokens_used": 0,
+      "results": [
+        {
+          "intent": "explain_request",
+          "topic": "牛顿第二定律",
+          "confidence": 0.95,
+          "parameters": {}
+        }
+      ]
     }
   ],
   "stats": {
-    "total_requests": 11,
-    "rule_based_success": 11,
+    "total_requests": 12,
+    "rule_based_success": 12,
     "llm_fallback": 0,
     "rule_success_rate": "100.0%"
   }

@@ -5,6 +5,9 @@ Skill Agent Demo - FastAPI 主应用入口
 为用户提供练习题生成和概念讲解等学习服务。
 """
 import logging
+import os
+import json
+from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
@@ -19,6 +22,55 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def reset_storage_files():
+    """
+    重置存储文件（memory 和 intent router 数据）
+    在开发环境中，后台重启时自动清空，保持干净状态
+    """
+    storage_dir = Path("memory_storage")
+    
+    if not storage_dir.exists():
+        logger.info("📁 Creating memory_storage directory")
+        storage_dir.mkdir(parents=True, exist_ok=True)
+        return
+    
+    # 重置 intent_router_output.json
+    intent_router_file = storage_dir / "intent_router_output.json"
+    if intent_router_file.exists():
+        initial_intent_data = {
+            "description": "Intent Router 实时输出记录 (Phase 3 架构)",
+            "latest": {},
+            "history": [],
+            "stats": {
+                "total_requests": 0,
+                "rule_based_success": 0,
+                "llm_fallback": 0,
+                "rule_success_rate": "0.0%"
+            }
+        }
+        with open(intent_router_file, 'w', encoding='utf-8') as f:
+            json.dump(initial_intent_data, f, indent=2, ensure_ascii=False)
+        logger.info("🧹 Reset intent_router_output.json")
+    
+    # 删除所有 session JSON 文件
+    session_files = list(storage_dir.glob("*-session.json"))
+    for session_file in session_files:
+        session_file.unlink()
+        logger.info(f"🧹 Deleted {session_file.name}")
+    
+    # 删除所有 user profile JSON 文件
+    profile_files = list(storage_dir.glob("*-profile.json"))
+    for profile_file in profile_files:
+        profile_file.unlink()
+        logger.info(f"🧹 Deleted {profile_file.name}")
+    
+    total_deleted = len(session_files) + len(profile_files)
+    if total_deleted > 0:
+        logger.info(f"✅ Cleaned up {total_deleted} memory files")
+    else:
+        logger.info("✅ Memory storage already clean")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """应用生命周期管理"""
@@ -26,6 +78,11 @@ async def lifespan(app: FastAPI):
     logger.info("🚀 Starting Skill Agent Demo API")
     logger.info(f"📍 Gemini Model: {settings.GEMINI_MODEL}")
     logger.info(f"💾 S3 Storage: {'Enabled' if settings.USE_S3_STORAGE else 'Disabled'}")
+    
+    # 🆕 重启时自动清理 memory 和 intent router 数据
+    if not settings.USE_S3_STORAGE:
+        logger.info("🧹 Resetting local storage on startup...")
+        reset_storage_files()
     
     if settings.USE_S3_STORAGE:
         logger.info(f"🗂️  S3 Bucket: {settings.AWS_S3_BUCKET}")
