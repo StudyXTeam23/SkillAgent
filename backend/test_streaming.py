@@ -139,7 +139,14 @@ async def test_orchestrator_stream():
                 print(f"\n✅ 完成！")
                 content = event.get('content', {})
                 print(f"  - 内容类型: {event.get('content_type')}")
-                print(f"  - 生成题目数: {len(content.get('questions', []))}")
+                # 🔧 修复：检查content类型
+                if isinstance(content, dict):
+                    questions = content.get('questions', [])
+                    print(f"  - 生成题目数: {len(questions)}")
+                elif isinstance(content, str):
+                    print(f"  - 内容是字符串: {len(content)} 字符")
+                else:
+                    print(f"  - 内容类型: {type(content)}")
                 
             elif event_type == 'error':
                 print(f"\n❌ 错误: {event.get('message')}")

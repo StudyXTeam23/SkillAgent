@@ -94,10 +94,15 @@ class GeminiClient:
                     
                     if hasattr(candidate, 'content') and hasattr(candidate.content, 'parts'):
                         for part in candidate.content.parts:
-                            # 检查是否为思考部分
-                            if hasattr(part, 'thought'):
+                            # 🔧 修复：正确区分thinking和content
+                            # Gemini API: 当有thought属性时，表示这是thinking部分
+                            has_thought_attr = hasattr(part, 'thought')
+                            
+                            if has_thought_attr:
+                                # 这是thinking部分
                                 thought = part.thought
                                 if isinstance(thought, str) and thought:
+                                    # thought是字符串，直接使用
                                     thinking_accumulated.append(thought)
                                     yield {
                                         "type": "thinking",
@@ -105,6 +110,7 @@ class GeminiClient:
                                         "accumulated": "".join(thinking_accumulated)
                                     }
                                 elif thought is True and hasattr(part, 'text'):
+                                    # thought是True，实际内容在text中
                                     text = part.text
                                     if text:
                                         thinking_accumulated.append(text)
@@ -113,15 +119,16 @@ class GeminiClient:
                                             "text": text,
                                             "accumulated": "".join(thinking_accumulated)
                                         }
-                            # 内容部分
-                            elif hasattr(part, 'text') and part.text:
-                                text = part.text
-                                content_accumulated.append(text)
-                                yield {
-                                    "type": "content",
-                                    "text": text,
-                                    "accumulated": "".join(content_accumulated)
-                                }
+                            else:
+                                # 没有thought属性，这是content部分
+                                if hasattr(part, 'text') and part.text:
+                                    text = part.text
+                                    content_accumulated.append(text)
+                                    yield {
+                                        "type": "content",
+                                        "text": text,
+                                        "accumulated": "".join(content_accumulated)
+                                    }
             
             # 完成标记
             yield {

@@ -732,7 +732,7 @@ async def agent_health() -> Dict[str, Any]:
 
 @router.post("/chat-stream", status_code=status.HTTP_200_OK)
 async def agent_chat_stream(
-    request: ChatRequest,
+    request: AgentChatRequest,  # 🔧 修复：使用正确的请求模型
     orchestrator: SkillOrchestrator = Depends(get_skill_orchestrator),
     memory_manager: MemoryManager = Depends(get_memory_manager),
     gemini_client: GeminiClient = Depends(get_gemini_client)
