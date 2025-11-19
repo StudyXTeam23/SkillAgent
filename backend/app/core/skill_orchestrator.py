@@ -209,16 +209,13 @@ class SkillOrchestrator:
                     )
             
             # 添加到 artifact history
-            # 🔧 修复：output_schema可能为None
+            # 🔧 TODO: 实现artifact保存逻辑
+            # 流式模式下先跳过artifact保存，专注于内容生成
             artifact_type = "unknown"
             if skill.output_schema and isinstance(skill.output_schema, dict):
                 artifact_type = skill.output_schema.get("artifact_type", "unknown")
             
-            await self.memory_manager.add_artifact(
-                session_id=session_id,
-                artifact_type=artifact_type,
-                content=parsed_content
-            )
+            logger.info(f"ℹ️  Skipping artifact save in stream mode (type: {artifact_type})")
             
             # 完成
             yield {

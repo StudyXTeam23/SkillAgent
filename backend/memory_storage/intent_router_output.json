@@ -1,36 +1,22 @@
 {
   "description": "Intent Router 实时输出记录 (Phase 3 架构)",
   "latest": {
-    "timestamp": "2025-11-19T14:32:46.179512",
-    "user_message": "什么是光合作用",
+    "timestamp": "2025-11-19T14:33:27.294680",
+    "user_message": "给我5道光合作用的题",
     "method": "rule_engine",
     "tokens_used": 0,
     "results": [
       {
-        "intent": "explain_request",
+        "intent": "quiz_request",
         "topic": "光合作用",
         "confidence": 0.95,
-        "parameters": {}
+        "parameters": {
+          "quantity": 5
+        }
       }
     ]
   },
   "history": [
-    {
-      "timestamp": "2025-11-19T14:14:04.895906",
-      "user_message": "给我5道光合作用的题",
-      "method": "rule_engine",
-      "tokens_used": 0,
-      "results": [
-        {
-          "intent": "quiz_request",
-          "topic": "光合作用",
-          "confidence": 0.95,
-          "parameters": {
-            "quantity": 5
-          }
-        }
-      ]
-    },
     {
       "timestamp": "2025-11-19T14:15:07.498027",
       "user_message": "给我5道光合作用的题",
@@ -172,11 +158,27 @@
           "parameters": {}
         }
       ]
+    },
+    {
+      "timestamp": "2025-11-19T14:33:27.294680",
+      "user_message": "给我5道光合作用的题",
+      "method": "rule_engine",
+      "tokens_used": 0,
+      "results": [
+        {
+          "intent": "quiz_request",
+          "topic": "光合作用",
+          "confidence": 0.95,
+          "parameters": {
+            "quantity": 5
+          }
+        }
+      ]
     }
   ],
   "stats": {
-    "total_requests": 10,
-    "rule_based_success": 10,
+    "total_requests": 11,
+    "rule_based_success": 11,
     "llm_fallback": 0,
     "rule_success_rate": "100.0%"
   }
