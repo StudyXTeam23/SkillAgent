@@ -168,6 +168,220 @@ class PlanSkillExecutor:
         
         return bundle
     
+    async def execute_plan_stream(
+        self,
+        plan_config: Dict[str, Any],
+        user_input: Dict[str, Any],
+        user_profile: Any,
+        session_context: Any
+    ):
+        """
+        🆕 流式执行完整的 Plan（实时展示每个步骤的thinking和进度）
+        
+        Args:
+            plan_config: Plan Skill 的 YAML 配置
+            user_input: 用户输入参数
+            user_profile: 用户学习画像
+            session_context: 会话上下文
+        
+        Yields:
+            Dict: 流式事件 {"type": "plan_progress|thinking|content|step_done|done", ...}
+        """
+        execution_plan = plan_config["execution_plan"]
+        steps = execution_plan["steps"]
+        total_steps = len(steps)
+        
+        logger.info(f"\n{'='*60}")
+        logger.info(f"🌊 开始流式执行 Plan Skill: {plan_config['display_name']}")
+        logger.info(f"📋 总步骤数: {total_steps}")
+        logger.info(f"🎓 主题: {user_input.get('topic', 'Unknown')}")
+        logger.info(f"{'='*60}\n")
+        
+        # 发送Plan开始状态
+        yield {
+            "type": "plan_start",
+            "total_steps": total_steps,
+            "topic": user_input.get('topic'),
+            "subject": user_input.get('subject')
+        }
+        
+        # 执行结果存储
+        step_results = {}
+        step_contexts = {}
+        
+        # 串联执行所有 steps（流式）
+        for step in steps:
+            step_id = step["step_id"]
+            step_name = step["display_name"]
+            skill_id = step["skill_id"]
+            step_order = step["order"]
+            
+            logger.info(f"\n{'─'*60}")
+            logger.info(f"📍 Step {step_order}/{total_steps}: {step_name}")
+            logger.info(f"🔧 Skill: {skill_id}")
+            
+            # 🆕 发送步骤开始状态
+            yield {
+                "type": "step_start",
+                "step_order": step_order,
+                "total_steps": total_steps,
+                "step_name": step_name,
+                "skill_id": skill_id
+            }
+            
+            try:
+                # 1. 构建 step 输入
+                step_input = self._build_step_input(
+                    step=step,
+                    user_input=user_input,
+                    step_contexts=step_contexts
+                )
+                logger.info(f"✅ 输入参数构建完成")
+                
+                # 2. 🆕 流式执行 skill
+                async for chunk in self._execute_step_stream(
+                    skill_id=skill_id,
+                    input_params=step_input,
+                    user_profile=user_profile,
+                    session_context=session_context,
+                    step_info={
+                        "step_order": step_order,
+                        "total_steps": total_steps,
+                        "step_name": step_name
+                    }
+                ):
+                    # 转发thinking和content chunks
+                    if chunk["type"] in ["thinking", "content"]:
+                        yield chunk
+                    elif chunk["type"] == "done":
+                        # Step完成，保存结果
+                        result = chunk.get("data", {})
+                        step_results[step_id] = result
+                        
+                        # 3. 提取上下文
+                        extracted_context = self._extract_context(
+                            result=result,
+                            extraction_config=step.get("context_extraction", {})
+                        )
+                        step_contexts[step_id] = extracted_context
+                        
+                        # 4. Token 统计
+                        tokens_used = self._estimate_tokens(result)
+                        self.token_usage["per_step"][step_id] = tokens_used
+                        self.token_usage["total"] += tokens_used
+                        
+                        logger.info(f"✅ Step {step_id} 完成")
+                        logger.info(f"💰 Token 消耗: ~{tokens_used}")
+                        logger.info(f"📊 累计 Token: ~{self.token_usage['total']}")
+                        
+                        # 🆕 发送步骤完成状态
+                        yield {
+                            "type": "step_done",
+                            "step_order": step_order,
+                            "total_steps": total_steps,
+                            "step_name": step_name,
+                            "tokens_used": tokens_used
+                        }
+                    elif chunk["type"] == "error":
+                        # Step失败
+                        raise Exception(chunk.get("message", "Step execution failed"))
+                
+            except Exception as e:
+                logger.error(f"❌ Step {step_id} 失败: {e}")
+                logger.exception(e)
+                
+                # 错误处理
+                error_config = plan_config.get("error_handling", {})
+                strategy = error_config.get("on_step_failure", {}).get("strategy", "skip_and_continue")
+                
+                # 🆕 发送步骤错误状态
+                yield {
+                    "type": "step_error",
+                    "step_order": step_order,
+                    "step_name": step_name,
+                    "error": str(e),
+                    "strategy": strategy
+                }
+                
+                if strategy == "skip_and_continue":
+                    logger.info(f"⏭️  跳过 Step {step_id}，继续执行下一步")
+                    continue
+                elif strategy == "abort":
+                    logger.error(f"🚫 Plan 执行中止")
+                    yield {
+                        "type": "error",
+                        "message": f"Plan执行中止于Step {step_order}: {str(e)}"
+                    }
+                    return
+        
+        logger.info(f"\n{'─'*60}")
+        logger.info(f"📦 所有步骤执行完成")
+        logger.info(f"✅ 成功: {len(step_results)}/{total_steps} 个步骤")
+        logger.info(f"💰 总 Token 消耗: ~{self.token_usage['total']}")
+        
+        # 检查最小成功步骤数
+        min_required = plan_config.get("error_handling", {}).get("min_required_steps", 1)
+        if len(step_results) < min_required:
+            error_msg = f"学习包生成失败：成功步骤不足 ({len(step_results)}/{min_required})"
+            logger.error(f"❌ {error_msg}")
+            yield {
+                "type": "error",
+                "message": error_msg
+            }
+            return
+        
+        # 聚合结果
+        bundle = self._aggregate_results(
+            step_results=step_results,
+            aggregation_config=plan_config["aggregation"],
+            user_input=user_input
+        )
+        
+        logger.info(f"\n{'='*60}")
+        logger.info(f"🎊 Plan Skill 执行完成！")
+        logger.info(f"📦 学习包 ID: {bundle.get('bundle_id')}")
+        logger.info(f"📚 包含组件: {len(bundle.get('components', []))}")
+        logger.info(f"⏱️  预计学习时间: {bundle.get('estimated_time_minutes')} 分钟")
+        logger.info(f"{'='*60}\n")
+        
+        # 🆕 发送Plan完成状态
+        yield {
+            "type": "done",
+            "content": bundle,
+            "content_type": "learning_bundle"
+        }
+    
+    async def _execute_step_stream(
+        self,
+        skill_id: str,
+        input_params: Dict[str, Any],
+        user_profile: Any,
+        session_context: Any,
+        step_info: Dict[str, Any]
+    ):
+        """
+        🆕 流式执行单个 skill（转发thinking和content）
+        
+        Args:
+            skill_id: Skill ID
+            input_params: 输入参数
+            user_profile: 用户画像
+            session_context: 会话上下文
+            step_info: 步骤信息（用于显示进度）
+        
+        Yields:
+            Dict: 流式事件
+        """
+        # 调用 SkillOrchestrator 的流式执行方法
+        async for chunk in self.skill_orchestrator._execute_single_skill_stream(
+            skill_id=skill_id,
+            input_params=input_params,
+            user_profile=user_profile,
+            session_context=session_context
+        ):
+            # 转发所有chunks
+            yield chunk
+    
     def _build_step_input(
         self,
         step: Dict[str, Any],

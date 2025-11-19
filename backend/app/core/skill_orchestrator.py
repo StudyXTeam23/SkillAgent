@@ -96,27 +96,31 @@ class SkillOrchestrator:
             )
             
             if is_plan_skill:
-                logger.warning(f"⚠️  Plan Skill不支持流式模式，回退到传统模式")
-                yield {
-                    "type": "status",
-                    "message": "正在生成学习包（多步骤生成）..."
-                }
+                # 🆕 Plan Skill 流式执行
+                logger.info(f"🌊 Executing Plan Skill in streaming mode")
                 
-                # 调用传统execute方法
-                result = await self.execute(
-                    intent_result=intent_result,
-                    user_id=user_id,
-                    session_id=session_id,
-                    additional_params=additional_params
+                # 加载用户画像和会话上下文
+                user_profile = self.memory_manager.load_profile(user_id)
+                session_context = self.memory_manager.load_session(session_id)
+                
+                # 构建输入参数
+                context = await self._build_context(skill, user_id, session_id)
+                input_params = self._build_input_params(
+                    skill, intent_result, context, additional_params
                 )
                 
-                # 转换为done事件
-                yield {
-                    "type": "done",
-                    "thinking": "Plan Skill串联执行：explain → flashcard → quiz",
-                    "content": result.get("response_content", {}),
-                    "content_type": result.get("content_type", "learning_bundle")
-                }
+                # 使用PlanSkillExecutor流式执行
+                from .plan_skill_executor import PlanSkillExecutor
+                plan_executor = PlanSkillExecutor(skill_orchestrator=self)
+                
+                async for chunk in plan_executor.execute_plan_stream(
+                    plan_config=skill.config,
+                    user_input=input_params,
+                    user_profile=user_profile,
+                    session_context=session_context
+                ):
+                    yield chunk
+                
                 return
             
             yield {
@@ -1063,6 +1067,116 @@ class SkillOrchestrator:
             result["_usage"] = usage
         
         return result
+    
+    async def _execute_single_skill_stream(
+        self,
+        skill_id: str,
+        input_params: Dict[str, Any],
+        user_profile: Any,
+        session_context: Any
+    ):
+        """
+        🆕 流式执行单个skill（用于Plan Skill的每个步骤）
+        
+        Args:
+            skill_id: Skill ID
+            input_params: 输入参数
+            user_profile: 用户画像
+            session_context: 会话上下文
+        
+        Yields:
+            Dict: 流式事件
+        """
+        # 获取skill
+        skill = self.skill_registry.get_skill(skill_id)
+        if not skill:
+            yield {
+                "type": "error",
+                "message": f"Skill not found: {skill_id}"
+            }
+            return
+        
+        # 加载prompt并格式化
+        prompt_content = self._load_prompt(skill)
+        context = {
+            "user_profile": user_profile,
+            "session_context": session_context
+        }
+        full_prompt = self._format_prompt(prompt_content, input_params, context)
+        
+        # 流式调用Kimi
+        thinking_accumulated = []
+        content_accumulated = []
+        
+        async for chunk in self.gemini_client.generate_stream(
+            prompt=full_prompt,
+            model=getattr(skill, 'models', {}).get('primary', 'moonshotai/kimi-k2-thinking'),
+            thinking_budget=getattr(skill, 'thinking_budget', 256),
+            buffer_size=1,
+            temperature=getattr(skill, 'temperature', 1.0)
+        ):
+            # 累积数据
+            if chunk["type"] == "thinking":
+                thinking_accumulated.append(chunk.get("text", ""))
+            elif chunk["type"] == "content":
+                content_accumulated.append(chunk.get("text", ""))
+            
+            # 转发chunk
+            yield chunk
+        
+        # 解析最终结果
+        full_thinking = "".join(thinking_accumulated)
+        full_content = "".join(content_accumulated)
+        
+        # 提取JSON
+        json_str = full_content
+        if "```json" in json_str:
+            try:
+                json_str = json_str.split("```json")[1].split("```")[0].strip()
+            except:
+                pass
+        elif "```" in json_str:
+            try:
+                json_str = json_str.split("```")[1].split("```")[0].strip()
+            except:
+                pass
+        
+        # 解析JSON
+        try:
+            parsed_content = json.loads(json_str)
+        except json.JSONDecodeError as e:
+            logger.error(f"❌ Failed to parse JSON: {e}")
+            yield {
+                "type": "error",
+                "message": "生成内容格式错误，请重试"
+            }
+            return
+        
+        # 检测content_type
+        content_type = "unknown"
+        if "quiz_set_id" in parsed_content or "questions" in parsed_content:
+            content_type = "quiz_set"
+        elif "concept" in parsed_content:
+            content_type = "explanation"
+        elif "card_set_id" in parsed_content or "cards" in parsed_content:
+            content_type = "flashcard_set"
+        elif "structured_notes" in parsed_content:
+            content_type = "notes"
+        elif "root" in parsed_content:
+            content_type = "mindmap"
+        
+        # 构建完整结果
+        result = {
+            "skill_id": skill_id,
+            "content_type": content_type,
+            **parsed_content
+        }
+        
+        # 发送done事件
+        yield {
+            "type": "done",
+            "data": result
+        }
     
     async def _execute_skill(
         self,
