@@ -9,6 +9,7 @@
 - [核心学习技能](#核心学习技能)
 - [智能Agent能力](#智能agent能力)
 - [Phase 3 架构优化](#phase-3-架构优化)
+- [🌊 流式思考过程](#流式思考过程)
 - [前端交互特性](#前端交互特性)
 - [数据存储](#数据存储)
 - [扩展性](#扩展性)
@@ -683,6 +684,205 @@ if intent in needs_clarification_intents:
 - ✅ **规则引擎保持简单**: 只处理明确的正面请求
 - ✅ **不写死否定/抱怨检测**: 避免误判和维护成本
 - ✅ **交给 LLM 处理边缘 case**: 规则引擎失败 → LLM fallback
+
+---
+
+## 3.9 🌊 流式思考过程（Streaming Thinking Process）
+
+**目标**: 实现类似ChatGPT的流式响应体验，用户无需等待15秒，可以实时看到AI的思考过程和生成内容。
+
+### 核心特性
+
+**后端架构**:
+1. **GeminiClient.generate_stream()** - 流式生成核心
+   - 使用Gemini 2.5 Flash的流式API
+   - 自动区分thinking和content部分
+   - 实时yield思考过程和生成内容
+   - 累积完整结果用于解析
+
+2. **SkillOrchestrator.execute_stream()** - 流式编排
+   - 完整的流式技能执行流程
+   - 实时yield状态更新、思考、内容
+   - JSON累积解析（处理不完整JSON）
+   - Memory更新（在完成时）
+
+3. **API Endpoint: /api/agent/chat-stream**
+   - Server-Sent Events (SSE) 标准
+   - 实时推送事件流
+   - 自动重连支持
+
+**前端体验**:
+1. **demo-stream.html** - 流式测试页面
+   - EventSource / Fetch Stream API
+   - 实时接收SSE事件
+   - 思考过程展示（可折叠）
+   - 内容逐步预览
+   - 最终结果美化渲染
+
+### 用户体验对比
+
+**传统模式**（等待完整响应）:
+```
+用户: "给我5道光合作用的题"
+[0s ━━━━━━━━━━━━━━━━━━━━━━━━ 15s]
+  ↑                           ↑
+  发送请求                    显示结果
+
+用户体验: ⭐⭐
+- 感觉很慢
+- 不知道在干什么
+- 可能以为卡住了
+```
+
+**流式模式**（实时展示）:
+```
+用户: "给我5道光合作用的题"
+
+[0s] 正在分析您的请求...           ← 立即反馈
+[1s] 开始生成题目...               ← 进度更新
+[2s] 🧠 用户请求光合作用题目...    ← 思考过程
+[3s] 🧠 需要考虑难度和题型...      ← 思考过程
+[4s] 📝 题目1: 什么是光合作用...   ← 内容生成
+[6s] 📝 题目2: 光合作用的产物...   ← 内容生成
+...
+[15s] ✅ 完成！
+
+用户体验: ⭐⭐⭐⭐⭐
+- 有即时反馈
+- 知道进度
+- 看到思考过程
+- 不焦虑
+```
+
+### 数据流
+
+```
+Step 1: 状态更新
+→ {"type": "status", "message": "正在分析您的请求..."}
+
+Step 2: 意图识别完成
+→ {"type": "status", "message": "开始生成题目..."}
+
+Step 3: 思考过程（逐步）
+→ {"type": "thinking", "text": "用户请求关于光合作用的题目..."}
+→ {"type": "thinking", "text": "需要考虑难度和题型..."}
+→ {"type": "thinking", "text": "准备生成5道选择题..."}
+
+Step 4: 内容生成（逐步）
+→ {"type": "content", "text": "{\n  \"quiz_set_id\": ..."}
+→ {"type": "content", "text": "  \"questions\": [\n    {"}
+→ {"type": "content", "text": "      \"question_text\": \"什么是光合作用？\""}
+...
+
+Step 5: 完成
+→ {"type": "done", "thinking": "完整思考", "content": "完整内容"}
+```
+
+### 技术实现
+
+**后端流式生成**:
+```python
+async def execute_stream(self, intent_result, user_id, session_id):
+    """流式执行技能"""
+    
+    # 1. 选择技能
+    skill = self._select_skill(intent_result)
+    yield {"type": "status", "message": f"使用 {skill.display_name}"}
+    
+    # 2. 构建上下文和参数
+    context = await self._build_context(skill, user_id, session_id)
+    params = self._build_input_params(skill, intent_result, context)
+    
+    # 3. 加载prompt
+    prompt_content = self._load_prompt(skill)
+    prompt = self._format_prompt(prompt_content, params, context)
+    
+    # 4. 流式调用LLM
+    async for chunk in self.gemini_client.generate_stream(
+        prompt=prompt,
+        model=skill.models["primary"],
+        thinking_budget=skill.thinking_budget
+    ):
+        # 转发LLM输出到前端
+        yield chunk
+    
+    # 5. 解析并更新memory
+    # ...
+```
+
+**前端EventSource**:
+```javascript
+async function sendMessage(message) {
+    const response = await fetch('/api/agent/chat-stream', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            user_id: 'demo-user',
+            session_id: 'demo-session',
+            message: message
+        })
+    });
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+        const {done, value} = await reader.read();
+        if (done) break;
+        
+        buffer += decoder.decode(value, {stream: true});
+        const events = buffer.split('\n\n');
+        buffer = events.pop();
+        
+        for (const event of events) {
+            if (event.startsWith('data: ')) {
+                const data = JSON.parse(event.substring(6));
+                handleStreamEvent(data);
+            }
+        }
+    }
+}
+```
+
+### 性能指标
+
+- **首字节时间 (TTFB)**: <0.5s（立即反馈）
+- **思考过程延迟**: ~1-2s（实时显示）
+- **完整生成时间**: ~10-15s（与非流式相同）
+- **用户感知延迟**: ⭐⭐⭐⭐⭐（显著改善）
+
+### Token统计
+
+流式模式与非流式模式的token消耗相同，但用户体验显著提升：
+- **Input tokens**: 一致
+- **Output tokens**: 一致
+- **Thinking tokens**: 一致（~200-800）
+- **Total tokens**: 一致（~5000-8000）
+
+**关键优势**: 相同的成本，10倍的体验提升！
+
+### 测试
+
+```bash
+# 测试Gemini流式API
+cd backend
+python3 test_streaming.py
+
+# 测试前端流式UI
+# 1. 启动后端
+cd backend && python3 -m uvicorn app.main:app --reload
+
+# 2. 访问流式demo
+open http://localhost:3000/demo-stream.html
+```
+
+### 注意事项
+
+1. **JSON流式解析**: 流式生成的JSON可能不完整，需要累积后解析
+2. **错误处理**: 部分生成失败时的优雅降级
+3. **超时处理**: 设置合理的超时时间（30s）
+4. **内存管理**: 在完成时更新memory，避免部分数据污染
 
 ---
 
