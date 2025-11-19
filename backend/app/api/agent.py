@@ -5,6 +5,7 @@ Agent API - 统一的聊天端点
 """
 import logging
 import time
+from datetime import datetime
 from typing import Dict, Any
 from fastapi import APIRouter, HTTPException, Depends, status
 from pydantic import BaseModel, Field, field_validator
@@ -15,6 +16,64 @@ from app.services.gemini import GeminiClient
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/agent", tags=["agent"])
+
+
+# ============= Helper Functions =============
+
+def _generate_artifact_summary(artifact_type: str, content: Dict[str, Any]) -> str:
+    """
+    生成artifact的摘要，用于显示和搜索
+    
+    Args:
+        artifact_type: artifact类型
+        content: artifact内容
+    
+    Returns:
+        摘要文本
+    """
+    try:
+        if artifact_type == "explanation":
+            concept = content.get("concept", "未知概念")
+            examples_count = len(content.get("examples", []))
+            return f"概念「{concept}」的解释，包含{examples_count}个例子"
+        
+        elif artifact_type == "quiz_set":
+            questions_count = len(content.get("questions", []))
+            topic = content.get("topic", "未知主题")
+            return f"{questions_count}道关于「{topic}」的题目"
+        
+        elif artifact_type == "flashcard_set":
+            cards_count = len(content.get("cards", []))
+            topic = content.get("topic", "未知主题")
+            return f"{cards_count}张关于「{topic}」的闪卡"
+        
+        elif artifact_type == "notes":
+            if "structured_notes" in content:
+                notes = content["structured_notes"]
+                sections_count = len(notes.get("sections", []))
+                topic = notes.get("topic", "未知主题")
+                return f"关于「{topic}」的笔记，包含{sections_count}个章节"
+            return "学习笔记"
+        
+        elif artifact_type == "mindmap":
+            topic = content.get("root_concept", "未知主题")
+            return f"「{topic}」的思维导图"
+        
+        elif artifact_type == "learning_bundle":
+            components = content.get("components", [])
+            topic = content.get("topic", "未知主题")
+            return f"「{topic}」的学习包，包含{len(components)}个组件"
+        
+        elif artifact_type == "mixed_response":
+            responses = content.get("responses", [])
+            return f"混合响应，包含{len(responses)}个组件"
+        
+        else:
+            return f"{artifact_type}类型的学习内容"
+    
+    except Exception as e:
+        logger.warning(f"⚠️ Failed to generate summary for {artifact_type}: {e}")
+        return f"{artifact_type}类型的学习内容"
 
 
 # ============= Request/Response Models =============
@@ -105,17 +164,26 @@ async def agent_chat(
         f"📩 Agent chat request from user={request.user_id}, "
         f"session={request.session_id}, message_len={len(request.message)}"
     )
+    logger.info(f"💬 User message: {request.message}")
+    logger.info("━"*70)
     
     try:
         # 1. 先通过 Intent Router 识别意图
         from ..core.intent_router import IntentRouter
         intent_router = IntentRouter(gemini_client=orchestrator.gemini_client)
         
-        # 获取记忆摘要
+        # ============= STEP 1: 记忆检索 =============
+        logger.info("🔍 STEP 1: Retrieving Memory Context...")
+        memory_start = time.time()
+        
         memory_summary = await orchestrator.memory_manager.generate_memory_summary(
             request.user_id,
             request.session_id
         )
+        memory_elapsed = time.time() - memory_start
+        logger.info(f"✅ Memory retrieved in {memory_elapsed:.2f}s")
+        logger.info(f"📊 Memory summary: {memory_summary}")
+        logger.info("━"*70)
         
         # V1.5: 获取上一轮 artifact 摘要（用于上下文引用）
         last_artifact_summary = "No previous interaction."
@@ -146,12 +214,20 @@ async def agent_chat(
         except Exception as e:
             logger.warning(f"⚠️ Failed to get last artifact summary: {e}")
         
-        # 解析意图（支持混合请求，返回列表）
+        # ============= STEP 2: 意图识别 =============
+        logger.info("🧭 STEP 2: Parsing User Intent (Intent Router)...")
+        intent_start = time.time()
+        
         intent_results = await intent_router.parse(
             message=request.message,
             memory_summary=memory_summary,
             last_artifact_summary=last_artifact_summary
         )
+        
+        intent_elapsed = time.time() - intent_start
+        logger.info(f"✅ Intent parsed in {intent_elapsed:.2f}s")
+        logger.info(f"📊 Detected {len(intent_results)} intent(s): {[r.intent for r in intent_results]}")
+        logger.info("━"*70)
         
         # 2. 特殊处理：如果意图是 "help"，返回功能列表
         if len(intent_results) == 1 and intent_results[0].intent == "help":
@@ -183,7 +259,7 @@ async def agent_chat(
    特点：知识点可视化，层级清晰
 
 6️⃣ 📦 学习包 (Learning Bundle)
-   用法：「帮我全面学习微积分」「二战历史学习资料」
+   用法：「二战历史学习资料」「帮我全面学习微积分」「量子力学学习材料」
    特点：混合讲解 + 测验 + 闪卡，一站式学习
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -193,7 +269,7 @@ async def agent_chat(
 • 个性化推荐：根据你的学习偏好智能推荐
 • 混合请求：「先讲解牛顿定律，然后给我5道题」
 
-试试问我：「解释一下光合作用」或「给我5道量子力学的题」吧！😊"""
+试试问我：「二战历史学习资料」或「给我5道量子力学的题」吧！😊"""
             
             response = AgentChatResponse(
                 user_id=request.user_id,
@@ -468,14 +544,27 @@ async def agent_chat(
             # 支持混合请求：循环执行多个 intents
             all_results = []
             
+            # ============= STEP 3: 技能执行 =============
+            logger.info(f"🎯 STEP 3: Executing Skill(s) ({len(intent_results)} intent(s))...")
+            
             for idx, intent_result in enumerate(intent_results):
-                logger.info(f"🎯 Executing intent {idx+1}/{len(intent_results)}: {intent_result.intent}")
+                logger.info(f"━"*70)
+                logger.info(f"🎯 Executing intent #{idx+1}/{len(intent_results)}: {intent_result.intent}")
+                logger.info(f"📊 Topic: {intent_result.topic}, Confidence: {intent_result.confidence:.2f}")
+                if intent_result.parameters:
+                    logger.info(f"📋 Parameters: {intent_result.parameters}")
+                
+                skill_start = time.time()
                 
                 orchestrator_response = await orchestrator.execute(
                     intent_result=intent_result,
                     user_id=request.user_id,
                     session_id=request.session_id
                 )
+                
+                skill_elapsed = time.time() - skill_start
+                content_type = orchestrator_response.get("content_type", "unknown")
+                logger.info(f"✅ Skill executed in {skill_elapsed:.2f}s (Content type: {content_type})")
                 
                 all_results.append(orchestrator_response)
             
@@ -485,13 +574,17 @@ async def agent_chat(
             # 构建响应
             if len(all_results) == 1:
                 # 单个结果
+                # 🆕 支持 Orchestrator 返回的特殊响应（onboarding/clarification）
+                result = all_results[0]
+                response_content = result.get("response_content") or result.get("content", {})
+                
                 response = AgentChatResponse(
                     user_id=request.user_id,
                     session_id=request.session_id,
-                    response_content=all_results[0].get("content", {}),
-                    content_type=all_results[0].get("content_type", "unknown"),
-                    intent=all_results[0].get("intent", "unknown"),
-                    skill_id=all_results[0].get("skill_id", "unknown"),
+                    response_content=response_content,
+                    content_type=result.get("content_type", "unknown"),
+                    intent=result.get("intent", "unknown"),
+                    skill_id=result.get("skill_id", "unknown"),
                     processing_time_ms=int(processing_time * 1000)
                 )
             else:
@@ -511,28 +604,65 @@ async def agent_chat(
             f"skill_id={response.skill_id}, processing_time={processing_time:.2f}s"
         )
         
-        # V1.5: 记录最近一次 artifact 到 SessionContext，用于上下文引用
-        # ⚠️ CRITICAL: 只有学习相关的 artifact 才更新，避免对话回复覆盖学习上下文
+        # ============= STEP 4: 记忆更新 =============
+        logger.info("━"*70)
+        logger.info("💾 STEP 4: Updating Memory Context...")
+        memory_update_start = time.time()
+        
+        # 🆕 更新 session context（last_user_message + artifact_history）
         try:
-            learning_artifacts = ["explanation", "quiz_set", "flashcard_set", "notes", "mindmap", "learning_bundle", "mixed_response"]
-            if response.content_type in learning_artifacts:
-                session_context = await orchestrator.memory_manager.get_session_context(
-                    session_id=request.session_id
-                )
-                if session_context:
-                    session_context.last_artifact = response.content_type
-                    session_context.last_artifact_content = response.response_content
-                    # 保存更新后的 session context
-                    await orchestrator.memory_manager.update_session_context(
-                        session_id=request.session_id,
-                        context=session_context
+            session_context = await orchestrator.memory_manager.get_session_context(
+                session_id=request.session_id
+            )
+            
+            if session_context:
+                # 1️⃣ 更新 last_user_message（始终更新）
+                session_context.last_user_message = request.message
+                logger.info(f"✅ Updated last_user_message: '{request.message[:50]}...'")
+                
+                # 2️⃣ 记录 artifact 到历史（仅学习相关）
+                learning_artifacts = ["explanation", "quiz_set", "flashcard_set", "notes", "mindmap", "learning_bundle", "mixed_response"]
+                if response.content_type in learning_artifacts:
+                    from app.models.memory import ArtifactRecord
+                    
+                    # 计算turn_number
+                    turn_number = len(session_context.artifact_history) + 1
+                    
+                    # 生成summary
+                    summary = _generate_artifact_summary(response.content_type, response.response_content)
+                    
+                    # 创建artifact record
+                    artifact_record = ArtifactRecord(
+                        artifact_id=f"artifact_{turn_number}",
+                        turn_number=turn_number,
+                        timestamp=datetime.now(),
+                        artifact_type=response.content_type,
+                        topic=session_context.current_topic,
+                        summary=summary,
+                        content=response.response_content
                     )
-                    logger.info(f"💾 Updated session context with last_artifact: {response.content_type}")
-            else:
-                logger.info(f"⏭️  Skipping last_artifact update for non-learning content: {response.content_type}")
+                    
+                    session_context.artifact_history.append(artifact_record)
+                    session_context.last_artifact_id = artifact_record.artifact_id
+                    
+                    logger.info(f"📦 Added artifact #{turn_number} to history (type: {response.content_type}, total: {len(session_context.artifact_history)})")
+                else:
+                    logger.info(f"⏭️  Skipping artifact recording for non-learning content: {response.content_type}")
+                
+                # 3️⃣ 保存更新后的 session context
+                await orchestrator.memory_manager.update_session_context(
+                    session_id=request.session_id,
+                    context=session_context
+                )
+                memory_update_elapsed = time.time() - memory_update_start
+                logger.info(f"✅ Session context updated in {memory_update_elapsed:.2f}s")
+                
         except Exception as e:
             # 记录失败不影响主流程
-            logger.warning(f"⚠️ Failed to update last_artifact in session: {e}")
+            logger.warning(f"⚠️ Failed to update session context: {e}")
+        
+        logger.info("━"*70)
+        logger.info(f"🎉 Request completed in {processing_time:.2f}s total")
         
         return response
         

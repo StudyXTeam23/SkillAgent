@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     GEMINI_MODEL: str = "gemini-2.0-flash-exp"
     
     # OpenAI API 配置（用于 MindMap Skill - 可选）
-    OPENAI_API_KEY: str = ""  # 从环境变量或 .env 文件读取
+    OPENAI_API_KEY: str = ""  # 请从环境变量或 .env 文件中加载
     OPENAI_MODEL: str = "gpt-4o-2024-08-06"
     OPENAI_BASE_URL: str = "https://api.openai.com/v1"
     OPENAI_TIMEOUT: float = 30.0

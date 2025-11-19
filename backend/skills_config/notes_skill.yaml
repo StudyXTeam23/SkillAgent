@@ -53,7 +53,7 @@ models:
   fallback: "gemini-2.0-flash-exp"
 
 context:
-  need_user_memory: false
+  need_user_memory: true  # 🆕 需要获取session_context以支持topic fallback
   need_content_store: false
 
 prompt_file: "notes_skill.txt"

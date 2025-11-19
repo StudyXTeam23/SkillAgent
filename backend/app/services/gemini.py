@@ -93,7 +93,19 @@ class GeminiClient:
                 result = response.text.strip()
                 elapsed = time.time() - start_time
                 
-                logger.info(f"✅ Gemini response received in {elapsed:.2f}s, length={len(result)}")
+                # ============= Token 使用统计 =============
+                usage_metadata = getattr(response, 'usage_metadata', None)
+                if usage_metadata:
+                    input_tokens = getattr(usage_metadata, 'prompt_token_count', 0)
+                    output_tokens = getattr(usage_metadata, 'candidates_token_count', 0)
+                    total_tokens = getattr(usage_metadata, 'total_token_count', 0)
+                    
+                    logger.info(
+                        f"📊 Token Usage | Input: {input_tokens:,} | Output: {output_tokens:,} | "
+                        f"Total: {total_tokens:,} | Time: {elapsed:.2f}s | Model: {model}"
+                    )
+                else:
+                    logger.info(f"✅ Gemini response received in {elapsed:.2f}s, length={len(result)}")
                 
                 # 如果是 JSON 格式，尝试解析验证
                 if response_format == "json":

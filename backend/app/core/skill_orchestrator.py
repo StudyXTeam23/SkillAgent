@@ -75,6 +75,186 @@ class SkillOrchestrator:
         """
         logger.info(f"🎯 Orchestrating: intent={intent_result.intent}, topic={intent_result.topic}")
         
+        # ============= Phase 0: 检查是否需要澄清或引导（优先级最高）=============
+        
+        # 🎯 澄清机制：对所有需要明确主题的skills，提供引导或澄清
+        needs_clarification_intents = [
+            "notes", "flashcard_request", "quiz_request", 
+            "explain_request", "mindmap", "learning_bundle"
+        ]
+        
+        if intent_result.intent in needs_clarification_intents:
+            # 获取 session context
+            session_context = await self.memory_manager.get_session_context(session_id)
+            artifact_history = []
+            
+            if session_context:
+                artifact_history = session_context.artifact_history or []
+            
+            # 🎯 关键：只有当topic无效时才需要澄清/引导
+            #    如果用户明确说了topic（如"微积分"），直接执行，不需要引导
+            topic_is_valid = intent_result.topic and len(intent_result.topic) >= 3
+            
+            # 🆕 首次访问 + 无明确topic：提供onboarding引导（0 token消耗）
+            if len(artifact_history) == 0 and not topic_is_valid:
+                logger.info(f"👋 First-time user detected, showing onboarding (0 tokens)")
+                
+                return {
+                    "content_type": "onboarding",
+                    "intent": intent_result.intent,
+                    "response_content": {
+                        "welcome": "👋 欢迎使用 StudyX Agent！",
+                        "message": "我注意到您还没有开始学习任何主题。",
+                        "suggestions": [
+                            {
+                                "category": "物理",
+                                "topics": ["牛顿定律", "光学", "电磁学", "量子力学"],
+                                "icon": "⚛️"
+                            },
+                            {
+                                "category": "数学",
+                                "topics": ["微积分", "线性代数", "概率论", "统计学"],
+                                "icon": "📐"
+                            },
+                            {
+                                "category": "历史",
+                                "topics": ["二战历史", "文艺复兴", "工业革命", "古代文明"],
+                                "icon": "📜"
+                            },
+                            {
+                                "category": "生物",
+                                "topics": ["光合作用", "细胞结构", "遗传学", "进化论"],
+                                "icon": "🧬"
+                            },
+                            {
+                                "category": "计算机",
+                                "topics": ["数据结构", "算法", "机器学习", "网络"],
+                                "icon": "💻"
+                            }
+                        ],
+                        "call_to_action": "请先告诉我您想学习什么主题，例如：「讲讲牛顿第二定律」或「什么是光合作用」"
+                    }
+                }
+            
+            # 多主题澄清：只有当topic无效且有多个主题时才触发
+            if not topic_is_valid and len(artifact_history) > 1:
+                # 提取所有已学习的主题
+                learned_topics = []
+                seen_topics = set()
+                for artifact in reversed(artifact_history):  # 最新的在前
+                    topic_val = artifact.topic if hasattr(artifact, 'topic') else artifact.get("topic")
+                    artifact_type = artifact.artifact_type if hasattr(artifact, 'artifact_type') else artifact.get("artifact_type", "unknown")
+                    
+                    if topic_val and topic_val not in seen_topics:
+                        seen_topics.add(topic_val)
+                        learned_topics.append({
+                            "topic": topic_val,
+                            "type": artifact_type
+                        })
+                
+                if len(learned_topics) >= 1:
+                    logger.info(f"💬 Clarification needed: {len(learned_topics)} topic(s) available, asking user (0 tokens)")
+                    
+                    # 根据不同intent生成不同的问题
+                    intent_questions = {
+                        "notes": ("做笔记", "做{topic}的笔记"),
+                        "quiz_request": ("生成题目", "生成{topic}的题目"),
+                        "flashcard_request": ("生成闪卡", "生成{topic}的闪卡"),
+                        "explain_request": ("讲解", "讲解{topic}"),
+                        "mindmap": ("生成思维导图", "生成{topic}的思维导图"),
+                        "learning_bundle": ("获取学习包", "获取{topic}的学习资料")
+                    }
+                    
+                    action_text, example_text = intent_questions.get(
+                        intent_result.intent, 
+                        ("学习", "学习{topic}")
+                    )
+                    
+                    # 返回澄清响应（0 token消耗）
+                    return {
+                        "content_type": "clarification",
+                        "intent": intent_result.intent,
+                        "response_content": {
+                            "question": f"您想对哪个主题{action_text}呢？",
+                            "learned_topics": learned_topics[:5],  # 最多显示5个
+                            "suggestion": f"请告诉我您想选择的主题，例如：「{example_text.format(topic=learned_topics[0]['topic'])}」"
+                        }
+                    }
+        
+        # ============= Phase 3: 处理 ambiguous/contextual 意图 =============
+        
+        # Step 0.1: 处理模糊意图 (需要偏好推断)
+        if intent_result.intent == "ambiguous":
+            logger.info("🔄 Processing ambiguous intent - applying user preference...")
+            
+            # 获取用户偏好（不调用 LLM，直接查询数据库/内存）
+            user_profile = await self.memory_manager.get_user_profile(user_id)
+            
+            # 从用户偏好中提取 top preference
+            top_preference = "explain"  # 默认
+            if user_profile and user_profile.preferences:
+                # preferences 是 dict: {"preferred_artifact": "quiz", ...}
+                preferred_artifact = user_profile.preferences.get("preferred_artifact")
+                if preferred_artifact:
+                    top_preference = preferred_artifact
+            
+            # 更新 intent 为用户偏好的技能
+            intent_result.intent = top_preference
+            logger.info(f"✅ Ambiguous intent resolved to: {top_preference} (based on user preference)")
+            
+            # 🆕 提取当前学习主题（如果用户没有指定topic，使用当前主题）
+            if not intent_result.topic:
+                session_context = await self.memory_manager.get_session_context(session_id)
+                if session_context and session_context.current_topic:
+                    intent_result.topic = session_context.current_topic
+                    logger.info(f"✅ Ambiguous intent: using current topic: {session_context.current_topic}")
+        
+        # Step 0.2: 处理上下文引用 (需要从 last_artifact 提取信息)
+        if intent_result.intent == "contextual":
+            logger.info("🔄 Processing contextual intent - extracting from last artifact...")
+            
+            # 获取 session context（不调用 LLM，直接读取内存）
+            session_context = await self.memory_manager.get_session_context(session_id)
+            
+            # 从 last_artifact 提取 topic
+            if session_context and session_context.last_artifact:
+                # last_artifact 格式: "Type: explanation | Topic: 牛顿第二定律"
+                last_artifact = session_context.last_artifact
+                
+                # 🆕 优先从 last_artifact 字符串提取，如果失败则从 current_topic 提取
+                if " | Topic: " in last_artifact:
+                    topic = last_artifact.split(" | Topic: ")[1].strip()
+                    intent_result.topic = topic
+                    logger.info(f"✅ Extracted topic from last artifact: {topic}")
+                elif session_context.current_topic:
+                    # Fallback: 如果 last_artifact 没有 topic 信息，使用 current_topic
+                    intent_result.topic = session_context.current_topic
+                    logger.info(f"✅ Using current_topic as fallback: {session_context.current_topic}")
+                else:
+                    logger.warning("⚠️ No topic found in last artifact or current_topic")
+                
+                # 根据 last artifact 类型推断意图
+                # 如果上一轮是 explain，这一轮可能是 quiz 或 flashcard
+                user_profile = await self.memory_manager.get_user_profile(user_id)
+                top_preference = "quiz"  # 默认
+                if user_profile and user_profile.preferences:
+                    preferred_artifact = user_profile.preferences.get("preferred_artifact")
+                    if preferred_artifact:
+                        top_preference = preferred_artifact
+                
+                intent_result.intent = top_preference
+                logger.info(f"✅ Contextual intent resolved to: {top_preference}")
+                
+                # 标记需要使用 last_artifact 内容
+                if not intent_result.parameters:
+                    intent_result.parameters = {}
+                intent_result.parameters['use_last_artifact'] = True
+            else:
+                logger.warning("⚠️ No last artifact found for contextual intent, falling back to 'other'")
+                intent_result.intent = "other"
+        
+        # ============= End Phase 3 Processing =============
+        
         # Step 1: 选择技能
         skill = self._select_skill(intent_result)
         if not skill:
@@ -212,9 +392,42 @@ class SkillOrchestrator:
         """
         params = {}
         
-        # 从 intent_result 提取基本参数
-        if intent_result.topic:
-            params["topic"] = intent_result.topic
+        # 从 intent_result 提取基本参数，并验证 topic 有效性
+        topic = intent_result.topic
+        topic_is_valid = False
+        
+        if topic:
+            # 验证 topic 是否有效（长度 >= 2，且不是纯数字/序数词）
+            invalid_topics = ["第一", "第二", "第三", "这", "那", "它", "这个", "那个"]
+            if len(topic) >= 2 and topic not in invalid_topics and not topic.isdigit():
+                params["topic"] = topic
+                topic_is_valid = True
+            else:
+                logger.info(f"⚠️  Invalid topic detected: '{topic}', will use fallback")
+        
+        # 🆕 Topic Fallback 策略
+        if not topic_is_valid:
+            if "session_context" in context:
+                session_ctx = context["session_context"]
+                current_topic = None
+                artifact_history = []
+                
+                if isinstance(session_ctx, dict):
+                    current_topic = session_ctx.get('current_topic')
+                    artifact_history = session_ctx.get('artifact_history', [])
+                else:
+                    current_topic = getattr(session_ctx, 'current_topic', None)
+                    artifact_history = getattr(session_ctx, 'artifact_history', [])
+                
+                # 🎯 注意：澄清机制已经在 execute() 方法开始时处理
+                #    如果执行到这里，说明不需要澄清，直接使用 current_topic fallback
+                
+                # 标准 fallback: 使用 current_topic
+                if current_topic:
+                    params["topic"] = current_topic
+                    logger.info(f"📎 Topic fallback: using session current_topic = {current_topic}")
+                else:
+                    logger.warning(f"⚠️  No valid topic found in intent_result or session_context for {skill.id}")
         
         # 添加 memory_summary
         if "memory_summary" in context:
@@ -232,19 +445,207 @@ class SkillOrchestrator:
                     last_artifact_content = getattr(session_ctx, 'last_artifact_content', None)
                 
                 if last_artifact_content:
-                    # 将上一轮的 artifact 内容作为 source_content 传递给 skill
+                    # 🆕 智能提取：基于Intent Router识别的引用类型提取内容
                     import json
-                    if isinstance(last_artifact_content, dict):
-                        params["source_content"] = json.dumps(last_artifact_content, ensure_ascii=False, indent=2)
+                    
+                    # 🆕 优先从 artifact_history 中搜索（支持多轮引用）
+                    artifact_history = getattr(session_ctx, 'artifact_history', []) if not isinstance(session_ctx, dict) else session_ctx.get('artifact_history', [])
+                    
+                    source_content = last_artifact_content
+                    reference_type = intent_result.parameters.get("reference_type")
+                    reference_index = intent_result.parameters.get("reference_index")
+                    reference_description = intent_result.parameters.get("reference_description")
+                    
+                    # 🔍 如果有reference_description，尝试从历史中搜索匹配的artifact
+                    if reference_description and artifact_history:
+                        matched_artifact = self._search_artifact_history(artifact_history, reference_description)
+                        if matched_artifact:
+                            source_content = matched_artifact.content
+                            logger.info(f"🔍 Found matching artifact in history: #{matched_artifact.turn_number} ({matched_artifact.artifact_type})")
+                        else:
+                            logger.info(f"ℹ️  No match found in history for '{reference_description}', using last_artifact")
+                    
+                    # 1️⃣ 引用特定题目（明确序号）
+                    if reference_type == "question" and isinstance(reference_index, int):
+                        if isinstance(last_artifact_content, dict) and "questions" in last_artifact_content:
+                            questions = last_artifact_content["questions"]
+                            if 1 <= reference_index <= len(questions):
+                                specific_question = questions[reference_index - 1]
+                                source_content = {
+                                    "quiz_set_id": last_artifact_content.get("quiz_set_id"),
+                                    "subject": last_artifact_content.get("subject"),
+                                    "specific_question": specific_question,
+                                    "question_number": reference_index
+                                }
+                                logger.info(f"✨ LLM detected: Extract question #{reference_index} from quiz_set")
+                    
+                    # 2️⃣ 引用特定例子（明确序号）
+                    elif reference_type == "example" and isinstance(reference_index, int):
+                        if isinstance(last_artifact_content, dict) and "examples" in last_artifact_content:
+                            examples = last_artifact_content["examples"]
+                            if 1 <= reference_index <= len(examples):
+                                specific_example = examples[reference_index - 1]
+                                source_content = {
+                                    "concept": last_artifact_content.get("concept"),
+                                    "subject": last_artifact_content.get("subject"),
+                                    "specific_example": specific_example,
+                                    "example_number": reference_index,
+                                    "all_examples": examples  # 保留上下文
+                                }
+                                logger.info(f"✨ LLM detected: Extract example #{reference_index} from explanation")
+                    
+                    # 3️⃣ 引用所有例子
+                    elif reference_type == "examples" and reference_index == "all":
+                        if isinstance(last_artifact_content, dict) and "examples" in last_artifact_content:
+                            source_content = {
+                                "concept": last_artifact_content.get("concept"),
+                                "subject": last_artifact_content.get("subject"),
+                                "all_examples": last_artifact_content["examples"]
+                            }
+                            logger.info(f"✨ LLM detected: Use all {len(last_artifact_content['examples'])} examples")
+                    
+                    # 4️⃣ 引用特定内容（语义搜索）
+                    elif reference_type == "content" and reference_description:
+                        # 🔍 在last_artifact_content中搜索包含reference_description的内容
+                        extracted_content = self._semantic_search_content(
+                            last_artifact_content, 
+                            reference_description
+                        )
+                        if extracted_content:
+                            source_content = extracted_content
+                            logger.info(f"✨ LLM detected: Extract content matching '{reference_description}'")
+                        else:
+                            logger.warning(f"⚠️  Could not find content matching '{reference_description}', using full content")
+                    
+                    # 5️⃣ 引用整个artifact（默认）
+                    elif reference_type == "last_artifact" or not reference_type:
+                        logger.info(f"✨ Using full last_artifact_content as source")
+                    
+                    # 将内容作为 source_content 传递给 skill
+                    if isinstance(source_content, dict):
+                        params["source_content"] = json.dumps(source_content, ensure_ascii=False, indent=2)
                     else:
-                        params["source_content"] = str(last_artifact_content)
-                    logger.info(f"📎 Using last_artifact_content as source_content for {skill.id}")
+                        params["source_content"] = str(source_content)
+                    logger.info(f"📎 Prepared source_content for {skill.id}")
         
         # 添加用户提供的额外参数
         if additional_params:
             params.update(additional_params)
         
         return params
+    
+    def _search_artifact_history(
+        self,
+        artifact_history: List[Any],
+        keyword: str
+    ) -> Optional[Any]:
+        """
+        在artifact_history中搜索包含keyword的artifact
+        
+        Args:
+            artifact_history: artifact历史记录列表
+            keyword: 搜索关键词
+        
+        Returns:
+            匹配的ArtifactRecord，如果没找到返回None
+        """
+        import json
+        
+        keyword_lower = keyword.lower()
+        
+        # 从最新到最旧搜索
+        for artifact in reversed(artifact_history):
+            # 1. 搜索summary
+            if hasattr(artifact, 'summary') and artifact.summary:
+                if keyword_lower in artifact.summary.lower():
+                    logger.info(f"🎯 Keyword '{keyword}' found in artifact #{artifact.turn_number} summary")
+                    return artifact
+            
+            # 2. 搜索topic
+            if hasattr(artifact, 'topic') and artifact.topic:
+                if keyword_lower in artifact.topic.lower():
+                    logger.info(f"🎯 Keyword '{keyword}' found in artifact #{artifact.turn_number} topic")
+                    return artifact
+            
+            # 3. 搜索content
+            if hasattr(artifact, 'content'):
+                content_str = json.dumps(artifact.content, ensure_ascii=False).lower()
+                if keyword_lower in content_str:
+                    logger.info(f"🎯 Keyword '{keyword}' found in artifact #{artifact.turn_number} content")
+                    return artifact
+        
+        return None
+    
+    def _semantic_search_content(
+        self,
+        content: Dict[str, Any],
+        keyword: str
+    ) -> Optional[Dict[str, Any]]:
+        """
+        在content中搜索包含keyword的部分（简单的关键词匹配）
+        
+        Args:
+            content: 要搜索的内容（last_artifact_content）
+            keyword: 搜索关键词（如 "北极冰川"、"温室效应"）
+        
+        Returns:
+            匹配的内容，如果没找到返回None
+        """
+        import json
+        
+        # 将content转为字符串便于搜索
+        content_str = json.dumps(content, ensure_ascii=False).lower()
+        keyword_lower = keyword.lower()
+        
+        # 1. 在examples中搜索
+        if "examples" in content and isinstance(content["examples"], list):
+            for idx, example in enumerate(content["examples"]):
+                example_str = json.dumps(example, ensure_ascii=False).lower()
+                if keyword_lower in example_str:
+                    logger.info(f"🔍 Found keyword '{keyword}' in example #{idx+1}")
+                    return {
+                        "concept": content.get("concept"),
+                        "subject": content.get("subject"),
+                        "specific_example": example,
+                        "example_number": idx + 1,
+                        "matched_keyword": keyword,
+                        "all_examples": content["examples"]
+                    }
+        
+        # 2. 在questions中搜索
+        if "questions" in content and isinstance(content["questions"], list):
+            for idx, question in enumerate(content["questions"]):
+                question_str = json.dumps(question, ensure_ascii=False).lower()
+                if keyword_lower in question_str:
+                    logger.info(f"🔍 Found keyword '{keyword}' in question #{idx+1}")
+                    return {
+                        "quiz_set_id": content.get("quiz_set_id"),
+                        "subject": content.get("subject"),
+                        "specific_question": question,
+                        "question_number": idx + 1,
+                        "matched_keyword": keyword
+                    }
+        
+        # 3. 在flashcards中搜索
+        if "flashcards" in content and isinstance(content["flashcards"], list):
+            matched_cards = []
+            for idx, card in enumerate(content["flashcards"]):
+                card_str = json.dumps(card, ensure_ascii=False).lower()
+                if keyword_lower in card_str:
+                    matched_cards.append(card)
+            
+            if matched_cards:
+                logger.info(f"🔍 Found keyword '{keyword}' in {len(matched_cards)} flashcard(s)")
+                return {
+                    "flashcard_set_id": content.get("flashcard_set_id"),
+                    "subject": content.get("subject"),
+                    "matched_flashcards": matched_cards,
+                    "matched_keyword": keyword
+                }
+        
+        # 4. 没找到，返回None
+        logger.warning(f"⚠️  Keyword '{keyword}' not found in content")
+        return None
     
     async def _execute_skill(
         self,
@@ -413,9 +814,14 @@ Please respond with valid JSON according to the output schema defined above.
             # 更新会话上下文
             session_context = await self.memory_manager.get_session_context(session_id)
             
-            # 更新当前主题
-            if intent_result.topic:
+            # 🆕 更新当前主题（只有当有明确主题时）
+            #     简单策略：如果 topic 不为 None 且长度>=3，就认为是明确主题
+            #     无需硬编码的 invalid_topics 列表，让规则引擎/LLM 决定
+            if intent_result.topic and len(intent_result.topic) >= 3:
                 session_context.current_topic = intent_result.topic
+                logger.info(f"✅ Updated current_topic to: {intent_result.topic}")
+            elif intent_result.topic:
+                logger.info(f"⏭️  Topic too short ({len(intent_result.topic)} chars), keeping current_topic: {session_context.current_topic}")
             
             # 添加意图到历史
             intent = intent_result.intent

@@ -17,9 +17,40 @@ You will receive:
   "subject": "学科（如：数学、物理、化学、历史、文学等）",
   "topic": "具体主题（如：数学-微积分-极限、历史-世界史-文艺复兴）",
   "memory_summary": "用户学习画像摘要",
-  "context": "触发讲解的上下文（可选，如刚做错的题目或相关讨论）"
+  "context": "触发讲解的上下文（可选，如刚做错的题目或相关讨论）",
+  "source_content": "（可选）如果用户要求基于特定内容（如某道题目）进行解释，这里会提供该内容的JSON格式"
 }
 ```
+
+⚠️⚠️⚠️ **CRITICAL - If source_content is provided**:
+1. **Parse the JSON**: source_content will contain a quiz question in JSON format like:
+   ```json
+   {
+     "specific_question": {
+       "question_id": "...",
+       "question_text": "珍珠港事件发生在哪一年？",
+       "question_type": "multiple_choice",
+       "options": ["A. 1939年", "B. 1941年", "C. 1943年", "D. 1945年"],
+       "correct_answer": "B",
+       "explanation": "..."
+     },
+     "question_number": 1
+   }
+   ```
+
+2. **Extract the core concept**: From the question_text, identify what specific concept/event is being tested
+   - Example: "珍珠港事件发生在哪一年？" → Core concept: "珍珠港事件"
+
+3. **Tailor your explanation**: 
+   - **Start with the question context**: "这道题考查的是【核心概念】..."
+   - **Focus on what the question is testing**: If asking "when", emphasize timeline; if asking "why", emphasize causes
+   - **Reference the question**: Use phrases like "这道题中提到的【事件】" or "题目问的【概念】"
+   - **Connect to the answer**: Your explanation should help the student understand why the correct answer is correct
+
+4. **Example structure**:
+   - Intuition: "这道题考查的是珍珠港事件，它是二战中的一个关键转折点..."
+   - Examples: Include the specific event/concept from the question as the FIRST example
+   - Why it matters: Explain why this concept appears in the quiz (its importance in the subject)
 
 ## Output Requirements
 You must return a valid JSON object in this exact format:

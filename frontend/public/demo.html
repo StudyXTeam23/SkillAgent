@@ -659,6 +659,176 @@ function initializeMindMap(containerId, mindmapData) {
     }
 }
 
+// 渲染首次访问引导（Onboarding）
+function renderOnboardingCard(content) {
+    const { welcome, message, suggestions, call_to_action } = content;
+    
+    let html = `
+        <div class="w-full max-w-3xl rounded-xl border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark shadow-lg overflow-hidden">
+            <!-- Header -->
+            <div class="p-6 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500">
+                <div class="flex items-center gap-3">
+                    <span class="material-symbols-outlined text-white text-4xl">celebration</span>
+                    <div>
+                        <h3 class="text-2xl font-bold text-white">${welcome}</h3>
+                        <p class="text-sm text-indigo-100 mt-1">${message}</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Topic Suggestions -->
+            <div class="p-6">
+                <p class="text-base font-semibold text-slate-700 dark:text-slate-300 mb-4">
+                    🎯 我可以帮您学习以下学科：
+                </p>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">`;
+    
+    suggestions.forEach(category => {
+        html += `
+                    <div class="border border-slate-300 dark:border-slate-600 rounded-lg p-4 hover:border-primary hover:shadow-md transition-all">
+                        <div class="flex items-center gap-2 mb-3">
+                            <span class="text-2xl">${category.icon}</span>
+                            <h4 class="font-bold text-slate-800 dark:text-slate-200">${category.category}</h4>
+                        </div>
+                        <div class="flex flex-wrap gap-2">`;
+        
+        category.topics.forEach(topic => {
+            html += `
+                            <button 
+                                onclick="startLearning('${topic.replace(/'/g, "\\'")}')"
+                                class="px-3 py-1 text-sm rounded-full border border-slate-300 dark:border-slate-600 
+                                       hover:bg-primary hover:text-white hover:border-primary transition-all
+                                       text-slate-700 dark:text-slate-300">
+                                ${topic}
+                            </button>`;
+        });
+        
+        html += `
+                        </div>
+                    </div>`;
+    });
+    
+    html += `
+                </div>
+            </div>
+            
+            <!-- Call to Action -->
+            <div class="p-4 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 border-t border-slate-200 dark:border-slate-700">
+                <div class="flex items-start gap-3">
+                    <span class="material-symbols-outlined text-primary text-2xl">lightbulb</span>
+                    <p class="text-sm text-slate-700 dark:text-slate-300 flex-1">
+                        ${call_to_action}
+                    </p>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    return html;
+}
+
+// 处理开始学习（从onboarding）
+function startLearning(topic) {
+    console.log('🎓 Start learning:', topic);
+    
+    // 构建消息并设置到输入框
+    const message = `讲讲${topic}`;
+    const input = document.getElementById('messageInput');
+    input.value = message;
+    
+    // 调用 handleSend 会自动：
+    // 1. 显示用户消息
+    // 2. 发送到后端
+    // 3. 显示 Agent 响应
+    handleSend();
+}
+
+// 渲染澄清请求（Clarification）
+function renderClarificationCard(content) {
+    const { question, learned_topics, suggestion } = content;
+    
+    let html = `
+        <div class="w-full max-w-2xl rounded-xl border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark shadow-sm overflow-hidden">
+            <!-- Header -->
+            <div class="p-4 bg-gradient-to-r from-blue-500 to-purple-500">
+                <div class="flex items-center gap-3">
+                    <span class="material-symbols-outlined text-white text-3xl">help_outline</span>
+                    <div>
+                        <h3 class="text-xl font-bold text-white">需要您的选择</h3>
+                        <p class="text-sm text-blue-100">Please clarify your request</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Question -->
+            <div class="p-6 border-b border-border-light dark:border-border-dark">
+                <p class="text-lg text-text-light-primary dark:text-text-dark-primary mb-4">
+                    ${question}
+                </p>
+                
+                <!-- Learned Topics -->
+                <div class="space-y-2">
+                    <p class="text-sm font-semibold text-slate-600 dark:text-slate-400 mb-3">📚 您最近学习过：</p>`;
+    
+    learned_topics.forEach((item, idx) => {
+        const icon = item.type === 'explanation' ? '📖' : 
+                     item.type === 'quiz_set' ? '✏️' : 
+                     item.type === 'flashcard_set' ? '🎴' : '📝';
+        html += `
+                    <button 
+                        onclick="selectTopic('${item.topic.replace(/'/g, "\\'")}', '${content.intent || 'notes'}')"
+                        class="w-full text-left px-4 py-3 rounded-lg border border-slate-300 dark:border-slate-600 
+                               hover:border-primary hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all
+                               text-text-light-primary dark:text-text-dark-primary">
+                        <span class="mr-2">${icon}</span>
+                        <span class="font-medium">${item.topic}</span>
+                    </button>`;
+    });
+    
+    html += `
+                </div>
+            </div>
+            
+            <!-- Suggestion -->
+            <div class="p-4 bg-slate-50 dark:bg-slate-800/50">
+                <p class="text-sm text-slate-600 dark:text-slate-400">
+                    💡 ${suggestion}
+                </p>
+            </div>
+        </div>
+    `;
+    
+    return html;
+}
+
+// 处理用户选择主题
+function selectTopic(topic, intent) {
+    console.log('🎯 User selected topic:', topic, 'for intent:', intent);
+    
+    // 根据intent构建消息（支持所有skills）
+    const intentMessages = {
+        'notes': `做${topic}的笔记`,
+        'quiz_request': `生成${topic}的题目`,
+        'flashcard_request': `生成${topic}的闪卡`,
+        'explain_request': `讲解${topic}`,
+        'mindmap': `生成${topic}的思维导图`,
+        'learning_bundle': `获取${topic}的学习资料`
+    };
+    
+    const message = intentMessages[intent] || `学习${topic}`;
+    
+    // 设置消息到输入框并发送
+    const input = document.getElementById('messageInput');
+    input.value = message;
+    
+    // 调用 handleSend 会自动：
+    // 1. 显示用户消息到聊天界面
+    // 2. 发送到后端
+    // 3. 显示 Agent 响应
+    handleSend();
+}
+
 // 将后端数据转换为 Mind Elixir 格式
 function convertToMindElixirFormat(mindmapData) {
     return {
@@ -768,6 +938,16 @@ function addAgentMessage(data) {
             console.warn('⚠️ Notes 数据结构不正确，缺少 structured_notes');
             contentHtml = `<pre class="text-xs overflow-auto p-4 bg-gray-100 dark:bg-gray-800 rounded">${JSON.stringify(data.response_content, null, 2)}</pre>`;
         }
+    } else if (data.content_type === 'onboarding') {
+        // 🆕 首次访问引导
+        contentHtml = renderOnboardingCard(data.response_content);
+    } else if (data.content_type === 'clarification') {
+        // 🆕 澄清请求：询问用户选择主题
+        // ✅ 传递完整的 data，包含 intent 信息
+        contentHtml = renderClarificationCard({
+            ...data.response_content,
+            intent: data.intent  // ← 显式传递 intent
+        });
     } else if (data.content_type === 'text' && data.response_content.text) {
         // 文本对话（如 "other" 意图）
         contentHtml = `<p class="text-base font-normal leading-normal rounded-xl rounded-bl-none px-4 py-3 bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark text-text-light-primary dark:text-text-dark-primary whitespace-pre-wrap max-w-2xl">${data.response_content.text}</p>`;

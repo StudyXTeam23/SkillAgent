@@ -4,9 +4,10 @@ Memory Manager - 记忆管理器
 负责管理用户的长期学习画像（UserLearningProfile）和短期会话上下文（SessionContext）。
 支持内存和 S3 两种存储方式。
 """
+import os
 import logging
 import json
-from typing import Optional, Dict
+from typing import Optional, Dict, Union
 from datetime import datetime
 
 from ..models.memory import UserLearningProfile, SessionContext
@@ -19,12 +20,13 @@ logger = logging.getLogger(__name__)
 class MemoryManager:
     """记忆管理器 - 管理用户学习画像和会话上下文"""
     
-    def __init__(self, use_s3: Optional[bool] = None):
+    def __init__(self, use_s3: Optional[bool] = None, local_storage_dir: Optional[str] = None):
         """
         初始化 Memory Manager
         
         Args:
             use_s3: 是否使用 S3 存储（None 时使用 settings 配置，False 强制内存，True 强制 S3）
+            local_storage_dir: 本地存储目录（用于调试和查看memory内容）
         """
         self.use_s3 = use_s3 if use_s3 is not None else settings.USE_S3_STORAGE
         
@@ -32,7 +34,13 @@ class MemoryManager:
         self._user_profiles: Dict[str, UserLearningProfile] = {}
         self._session_contexts: Dict[str, SessionContext] = {}
         
-        logger.info(f"✅ MemoryManager initialized (S3: {self.use_s3})")
+        # 本地存储配置（用于调试）
+        self.local_storage_dir = local_storage_dir or os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+            "memory_storage"
+        )
+        os.makedirs(self.local_storage_dir, exist_ok=True)
+        logger.info(f"✅ MemoryManager initialized (S3: {self.use_s3}, Local: {self.local_storage_dir})")
     
     # ============= User Learning Profile =============
     
@@ -87,6 +95,10 @@ class MemoryManager:
         
         self._user_profiles[user_id] = profile
         logger.info(f"✅ Updated user profile for {user_id}")
+        
+        # 保存到本地文件（用于调试）
+        await self._save_to_local_file(user_id, profile, "profile")
+        
         return profile
     
     # ============= Session Context =============
@@ -139,6 +151,10 @@ class MemoryManager:
         
         self._session_contexts[session_id] = context
         logger.info(f"✅ Updated session context for {session_id}")
+        
+        # 保存到本地文件（用于调试）
+        await self._save_to_local_file(session_id, context, "session")
+        
         return context
     
     # ============= Memory Summary =============
@@ -336,4 +352,58 @@ class MemoryManager:
         # 占位符：使用内存存储
         self._session_contexts[session_id] = context
         return context
+    
+    # ============= 本地文件存储（用于调试） =============
+    
+    async def _save_to_local_file(
+        self,
+        id_str: str,
+        data: Union[UserLearningProfile, SessionContext],
+        data_type: str
+    ):
+        """
+        保存数据到本地文件（用于调试和查看memory内容）
+        
+        Args:
+            id_str: 用户ID或会话ID
+            data: UserLearningProfile 或 SessionContext
+            data_type: "profile" 或 "session"
+        """
+        try:
+            import json
+            from datetime import datetime
+            
+            # 构建文件路径
+            filename = f"{data_type}_{id_str}.json"
+            filepath = os.path.join(self.local_storage_dir, filename)
+            
+            # 转换为字典并添加时间戳
+            if isinstance(data, (UserLearningProfile, SessionContext)):
+                data_dict = data.model_dump()
+            else:
+                data_dict = dict(data)
+            
+            # 🆕 转换所有datetime对象为ISO格式字符串
+            def convert_datetime(obj):
+                """递归转换datetime对象"""
+                if isinstance(obj, datetime):
+                    return obj.isoformat()
+                elif isinstance(obj, dict):
+                    return {k: convert_datetime(v) for k, v in obj.items()}
+                elif isinstance(obj, list):
+                    return [convert_datetime(item) for item in obj]
+                else:
+                    return obj
+            
+            data_dict = convert_datetime(data_dict)
+            data_dict["_last_updated"] = datetime.now().isoformat()
+            
+            # 写入文件
+            with open(filepath, 'w', encoding='utf-8') as f:
+                json.dump(data_dict, f, ensure_ascii=False, indent=2)
+            
+            logger.debug(f"💾 Saved {data_type} to {filepath}")
+            
+        except Exception as e:
+            logger.warning(f"⚠️  Failed to save {data_type} to local file: {e}")
 
