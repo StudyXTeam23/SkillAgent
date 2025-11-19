@@ -54,6 +54,132 @@ class SkillOrchestrator:
         
         logger.info("✅ SkillOrchestrator initialized")
     
+    async def execute_stream(
+        self,
+        intent_result: IntentResult,
+        user_id: str,
+        session_id: str,
+        additional_params: Optional[Dict[str, Any]] = None
+    ):
+        """
+        🆕 流式执行技能（实时展示思考过程和生成内容）
+        
+        Args:
+            intent_result: 意图识别结果
+            user_id: 用户 ID
+            session_id: 会话 ID
+            additional_params: 额外参数
+        
+        Yields:
+            Dict: 流式事件 {"type": "status|thinking|content|done", ...}
+        """
+        try:
+            logger.info(f"🌊 Stream orchestrating: intent={intent_result.intent}, topic={intent_result.topic}")
+            
+            # Step 1: 选择技能
+            skill = self._select_skill(intent_result)  # 🔧 修复：传递IntentResult对象
+            if not skill:
+                yield {
+                    "type": "error",
+                    "message": f"No skill found for intent: {intent_result.intent}"
+                }
+                return
+            
+            yield {
+                "type": "status",
+                "message": f"使用 {skill.display_name}"
+            }
+            
+            # Step 2: 构建上下文
+            context = await self._build_context(skill, user_id, session_id)
+            
+            # Step 3: 构建输入参数
+            params = self._build_input_params(
+                skill, intent_result, context, additional_params
+            )
+            
+            # 检查是否需要澄清
+            if not params.get("topic"):
+                yield {
+                    "type": "clarification_needed",
+                    "message": "需要明确学习主题"
+                }
+                return
+            
+            # Step 4: 加载 prompt
+            prompt = self._load_prompt(skill, params)
+            
+            # Step 5: 流式调用 LLM
+            yield {
+                "type": "status", 
+                "message": "正在生成内容..."
+            }
+            
+            thinking_accumulated = []
+            content_accumulated = []
+            
+            async for chunk in self.gemini_client.generate_stream(
+                prompt=prompt,
+                model=skill.models.get("primary", "gemini-2.5-flash"),
+                thinking_budget=skill.thinking_budget or 1024
+            ):
+                # 累积数据
+                if chunk["type"] == "thinking":
+                    thinking_accumulated.append(chunk.get("text", ""))
+                elif chunk["type"] == "content":
+                    content_accumulated.append(chunk.get("text", ""))
+                
+                # 转发给前端
+                yield chunk
+            
+            # Step 6: 解析最终结果
+            full_thinking = "".join(thinking_accumulated)
+            full_content = "".join(content_accumulated)
+            
+            # 尝试解析 JSON
+            try:
+                parsed_content = json.loads(full_content)
+            except json.JSONDecodeError as e:
+                logger.error(f"❌ Failed to parse JSON: {e}")
+                yield {
+                    "type": "error",
+                    "message": "生成内容格式错误"
+                }
+                return
+            
+            # Step 7: 更新 memory
+            # 更新 current_topic
+            if params.get("topic"):
+                await self.memory_manager.update_session_context(
+                    session_id=session_id,
+                    updates={"current_topic": params["topic"]}
+                )
+            
+            # 添加到 artifact history
+            artifact_type = skill.output_schema.get("artifact_type", "unknown")
+            await self.memory_manager.add_artifact(
+                session_id=session_id,
+                artifact_type=artifact_type,
+                content=parsed_content
+            )
+            
+            # 完成
+            yield {
+                "type": "done",
+                "thinking": full_thinking,
+                "content": parsed_content,
+                "content_type": artifact_type
+            }
+            
+            logger.info(f"✅ Stream orchestration complete for {skill.id}")
+            
+        except Exception as e:
+            logger.error(f"❌ Stream orchestration error: {e}")
+            yield {
+                "type": "error",
+                "message": str(e)
+            }
+    
     async def execute(
         self,
         intent_result: IntentResult,
