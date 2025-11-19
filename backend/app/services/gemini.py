@@ -437,10 +437,19 @@ Your JSON response:"""
                 # 检查 content.parts
                 if hasattr(candidate, 'content') and hasattr(candidate.content, 'parts'):
                     for part in candidate.content.parts:
-                        # 查找 thought 类型的 part
-                        if hasattr(part, 'thought') and part.thought:
-                            logger.info(f"🧠 Thinking process found: {len(part.thought)} chars")
-                            return part.thought
+                        # 查找 thought 属性（可能是字符串或布尔）
+                        if hasattr(part, 'thought'):
+                            thought = part.thought
+                            # 检查是否为字符串类型
+                            if isinstance(thought, str) and thought:
+                                logger.info(f"🧠 Thinking process found: {len(thought)} chars")
+                                return thought
+                            # 如果是布尔值 True，查找 text
+                            elif thought is True and hasattr(part, 'text'):
+                                text = part.text
+                                if text:
+                                    logger.info(f"🧠 Thinking process found (via text): {len(text)} chars")
+                                    return text
                         
                         # 备选方案：检查 part 的其他属性
                         if hasattr(part, 'text') and part.text:

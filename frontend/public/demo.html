@@ -587,11 +587,40 @@ function removeLoadingMessage() {
 }
 
 // 渲染 QuizCard
+// 🆕 渲染思考过程
+function renderThinkingProcess(thinking) {
+    if (!thinking) return '';
+    
+    return `
+        <div class="w-full max-w-3xl mb-4">
+            <details class="group border border-border-light dark:border-border-dark rounded-lg overflow-hidden bg-surface-light dark:bg-surface-dark">
+                <summary class="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                    <div class="flex items-center gap-2">
+                        <svg class="w-5 h-5 text-primary transition-transform group-open:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                        </svg>
+                        <span class="text-base font-semibold text-text-light-primary dark:text-text-dark-primary">🧠 思考过程</span>
+                    </div>
+                    <span class="text-xs text-text-light-secondary dark:text-text-dark-secondary">点击展开</span>
+                </summary>
+                <div class="px-4 py-3 border-t border-border-light dark:border-border-dark bg-gray-50 dark:bg-gray-900">
+                    <div class="prose prose-sm dark:prose-invert max-w-none">
+                        <pre class="whitespace-pre-wrap text-sm text-text-light-secondary dark:text-text-dark-secondary font-mono leading-relaxed">${escapeHtml(thinking)}</pre>
+                    </div>
+                </div>
+            </details>
+        </div>
+    `;
+}
+
 function renderQuizCard(content) {
     const questions = content.questions || [];
     if (questions.length === 0) return '<p>暂无题目</p>';
     
-    let html = '<div class="flex flex-col gap-6 w-full">';
+    // 🆕 添加思考过程
+    let html = renderThinkingProcess(content._thinking);
+    
+    html += '<div class="flex flex-col gap-6 w-full">';
     
     questions.forEach((q, idx) => {
         html += `
@@ -642,7 +671,9 @@ function renderExplainCard(content) {
     const formalDef = content.formal_definition || '';
     const examples = content.examples || [];
     
-    let html = `
+    // 🆕 添加思考过程
+    let html = renderThinkingProcess(content._thinking);
+    html += `
         <div class="w-full rounded-xl border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark shadow-sm">
             <div class="p-6">
                 <h1 class="text-2xl font-bold text-text-light-primary dark:text-text-dark-primary tracking-tight">${concept}</h1>
@@ -694,7 +725,9 @@ function renderFlashcardSet(content) {
     const cards = content.cards || [];
     if (cards.length === 0) return '<p>暂无抽认卡</p>';
     
-    let html = '<div class="flex flex-col gap-4 w-full">';
+    // 🆕 添加思考过程
+    let html = renderThinkingProcess(content._thinking);
+    html += '<div class="flex flex-col gap-4 w-full">';
     html += `<h3 class="text-lg font-bold text-text-light-primary dark:text-text-dark-primary">📚 抽认卡集合</h3>`;
     
     cards.forEach((card, idx) => {
