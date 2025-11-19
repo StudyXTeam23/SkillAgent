@@ -179,9 +179,11 @@
 
 ---
 
-### 1.6 学习包 (Learning Bundle)
+### 1.6 学习包 (Learning Bundle / Plan Skill)
 
 **功能**: 一站式综合学习资料
+
+**架构**: Plan Skill - 串联编排多个子技能
 
 **包含内容**:
 - Explanation（概念讲解）
@@ -193,14 +195,21 @@
 - 智能组合最佳学习资源
 - 一次请求生成多种材料
 - 内容关联性高
+- 串联执行保证内容相关性
+
+**Thinking 模式**:
+- ⚠️ **Plan Skill本身不生成内容** - 仅作为协调器
+- ✅ **Sub-skills各自有thinking** - explain_skill、quiz_skill、flashcard_skill
+- 🔄 **流式模式支持** - 暂时回退到传统模式（未来版本改进）
+- 📊 **Thinking显示** - 聚合显示"Plan Skill串联执行：explain → flashcard → quiz"
 
 **示例**:
 ```
 👤: 二战历史学习资料
 🤖: [生成学习包]
-    • 核心概念讲解
-    • 5道练习题
-    • 10张记忆闪卡
+    • 核心概念讲解（含thinking）
+    • 5道练习题（含thinking）
+    • 10张记忆闪卡（含thinking）
     • 结构化笔记
 ```
 
@@ -883,6 +892,30 @@ open http://localhost:3000/demo-stream.html
 2. **错误处理**: 部分生成失败时的优雅降级
 3. **超时处理**: 设置合理的超时时间（30s）
 4. **内存管理**: 在完成时更新memory，避免部分数据污染
+
+### Plan Skill 流式支持
+
+**当前状态**: ⚠️ Plan Skill暂不支持完整流式模式
+
+**处理策略**:
+```python
+# 检测到Plan Skill时，回退到传统模式
+if skill.skill_type == "plan":
+    yield {"type": "status", "message": "正在生成学习包（多步骤生成）..."}
+    result = await self.execute(...)  # 传统模式
+    yield {"type": "done", "thinking": "Plan Skill串联执行：explain → flashcard → quiz", ...}
+```
+
+**用户体验**:
+- ✅ 显示状态："正在生成学习包..."
+- ✅ 显示聚合thinking
+- ✅ 显示完整结果
+- ⚠️ Sub-skills的thinking不会实时显示（整体生成完成后显示）
+
+**未来改进** (V2.2):
+- 🔄 实现真正的Plan Skill流式支持
+- 📊 依次流式显示各个sub-skill的thinking
+- ⏱️ 实时状态更新："Step 1/3: 生成概念讲解..."
 
 ---
 

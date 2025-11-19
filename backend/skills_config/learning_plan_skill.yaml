@@ -192,10 +192,16 @@ output_schema:
       description: "主题"
 
 # ============= AI Model 配置 =============
-# Plan Skill 本身不直接调用 LLM，但子 skills 会使用各自的配置
+# ⚠️ Plan Skill 本身不直接调用 LLM，仅作为协调器
+# ✅ Sub-skills (explain_skill, quiz_skill, flashcard_skill) 各自有thinking_budget配置
+# 🔄 Plan Skill 不需要 thinking_budget（因为不生成内容）
 models:
   # 用于可能的动态规划功能（未来扩展）
   planner_model: "gemini-2.0-flash-exp"
+
+# ⚠️ 注意：没有 thinking_budget 配置
+# 原因：Plan Skill只编排sub-skills，不直接生成内容
+# Sub-skills各自的thinking会被保留和使用
 
 # ============= Context 需求 =============
 context:

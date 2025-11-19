@@ -85,6 +85,31 @@ class SkillOrchestrator:
                 }
                 return
             
+            # 🔧 检测Plan Skill - Plan Skill不支持流式（暂时回退到传统模式）
+            if skill.skill_type == "plan":
+                logger.warning(f"⚠️  Plan Skill不支持流式模式，回退到传统模式")
+                yield {
+                    "type": "status",
+                    "message": "正在生成学习包（多步骤生成）..."
+                }
+                
+                # 调用传统execute方法
+                result = await self.execute(
+                    intent_result=intent_result,
+                    user_id=user_id,
+                    session_id=session_id,
+                    additional_params=additional_params
+                )
+                
+                # 转换为done事件
+                yield {
+                    "type": "done",
+                    "thinking": "Plan Skill串联执行：explain → flashcard → quiz",
+                    "content": result.get("response_content", {}),
+                    "content_type": result.get("content_type", "learning_bundle")
+                }
+                return
+            
             yield {
                 "type": "status",
                 "message": f"使用 {skill.display_name}"
@@ -121,7 +146,7 @@ class SkillOrchestrator:
             
             async for chunk in self.gemini_client.generate_stream(
                 prompt=prompt,
-                model=skill.models.get("primary", "gemini-2.5-flash"),
+                model=skill.models.get("primary", "gemini-2.5-flash-lite"),
                 thinking_budget=skill.thinking_budget or 1024
             ):
                 # 累积数据
@@ -1056,7 +1081,7 @@ class SkillOrchestrator:
         full_prompt = self._format_prompt(prompt_content, params, context)
         
         # 调用 Gemini
-        model = skill.models.get("primary", "gemini-2.5-flash")  # 🆕 使用 2.5 Flash
+        model = skill.models.get("primary", "gemini-2.5-flash-lite")  # 🆕 使用 2.5 Flash Lite
         thinking_budget = skill.thinking_budget or 1024  # 🆕 从 skill 配置读取
         
         logger.debug(f"🤖 Calling Gemini model: {model} (thinking_budget={thinking_budget})")
