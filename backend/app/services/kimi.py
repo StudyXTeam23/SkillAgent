@@ -135,11 +135,11 @@ class KimiClient:
         self,
         prompt: str,
         model: Optional[str] = None,
-        temperature: float = 0.7,  # ⚡ 优化：默认0.7加快生成速度（原0.6）
+        temperature: float = 0.8,  # ⚡⚡ 激进优化：默认0.8加快生成速度（原0.7）
         max_tokens: int = 4096,
         thinking_budget: Optional[int] = None,
         return_thinking: bool = True,
-        buffer_size: int = 50  # 🆕 缓冲区大小（字符数）
+        buffer_size: int = 30  # ⚡⚡ 降低缓冲（原50），打字机效果
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """
         生成内容（流式 + 优化缓冲）
