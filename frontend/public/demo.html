@@ -693,11 +693,38 @@ function handleStreamChunk(responseId, data) {
         if (statusEl) {
             statusEl.querySelector('span').textContent = `🎓 生成学习包：${data.topic} (${data.total_steps}个步骤)`;
         }
+        
+        // 🆕 渲染Plan Preview卡片
+        if (data.steps_preview && data.steps_preview.length > 0 && finalEl) {
+            const previewHtml = renderPlanPreview(data.topic, data.steps_preview, data.total_steps);
+            finalEl.innerHTML = previewHtml;
+            scrollToBottom();
+        }
     }
     else if (data.type === 'step_start') {
         // 更新状态显示当前步骤
         if (statusEl) {
             statusEl.querySelector('span').textContent = `📍 Step ${data.step_order}/${data.total_steps}: ${data.step_name}`;
+        }
+        
+        // 🆕 更新Plan Preview中的进度指示器
+        const stepIndicator = document.getElementById(`plan-step-${data.step_order}`);
+        if (stepIndicator) {
+            // 移除所有步骤的active状态
+            document.querySelectorAll('.plan-step-item').forEach(el => {
+                el.classList.remove('border-primary', 'bg-blue-50', 'dark:bg-blue-900/20');
+                el.classList.add('border-border-light', 'dark:border-border-dark');
+            });
+            
+            // 标记当前步骤为进行中
+            stepIndicator.classList.remove('border-border-light', 'dark:border-border-dark');
+            stepIndicator.classList.add('border-primary', 'bg-blue-50', 'dark:bg-blue-900/20');
+            
+            // 更新步骤状态图标
+            const statusIcon = stepIndicator.querySelector('.step-status-icon');
+            if (statusIcon) {
+                statusIcon.textContent = '⏳';
+            }
         }
         
         // 如果有之前的thinking/content区域，折叠它们
@@ -710,11 +737,39 @@ function handleStreamChunk(responseId, data) {
         if (statusEl) {
             statusEl.querySelector('span').textContent = `✅ Step ${data.step_order}/${data.total_steps} 完成`;
         }
+        
+        // 🆕 更新Plan Preview中的完成状态
+        const stepIndicator = document.getElementById(`plan-step-${data.step_order}`);
+        if (stepIndicator) {
+            // 标记为已完成
+            stepIndicator.classList.remove('border-primary', 'bg-blue-50', 'dark:bg-blue-900/20');
+            stepIndicator.classList.add('border-green-500', 'bg-green-50', 'dark:bg-green-900/20');
+            
+            // 更新步骤状态图标
+            const statusIcon = stepIndicator.querySelector('.step-status-icon');
+            if (statusIcon) {
+                statusIcon.textContent = '✅';
+            }
+        }
     }
     else if (data.type === 'step_error') {
         // 步骤失败
         if (statusEl) {
             statusEl.querySelector('span').textContent = `⚠️ Step ${data.step_order} 失败: ${data.error}`;
+        }
+        
+        // 🆕 更新Plan Preview中的错误状态
+        const stepIndicator = document.getElementById(`plan-step-${data.step_order}`);
+        if (stepIndicator) {
+            // 标记为失败
+            stepIndicator.classList.remove('border-primary', 'bg-blue-50', 'dark:bg-blue-900/20');
+            stepIndicator.classList.add('border-red-500', 'bg-red-50', 'dark:bg-red-900/20');
+            
+            // 更新步骤状态图标
+            const statusIcon = stepIndicator.querySelector('.step-status-icon');
+            if (statusIcon) {
+                statusIcon.textContent = '❌';
+            }
         }
     } 
     else if (data.type === 'thinking') {
@@ -867,6 +922,85 @@ function removeLoadingMessage() {
 }
 
 // 渲染 QuizCard
+// 🆕 渲染Plan预览卡片
+function renderPlanPreview(topic, stepsPreview, totalSteps) {
+    const stepsHtml = stepsPreview.map((step, idx) => {
+        const stepNumber = step.step_order;
+        const isFirst = idx === 0;
+        const isLast = idx === stepsPreview.length - 1;
+        
+        return `
+            <div id="plan-step-${stepNumber}" 
+                 class="plan-step-item flex items-start gap-4 p-4 rounded-lg border-2 border-border-light dark:border-border-dark transition-all duration-300">
+                <!-- 步骤编号和状态 -->
+                <div class="flex flex-col items-center gap-2">
+                    <div class="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                        <span class="text-lg font-bold text-primary">${stepNumber}</span>
+                    </div>
+                    <div class="step-status-icon text-2xl">⏸️</div>
+                </div>
+                
+                <!-- 步骤内容 -->
+                <div class="flex-1 min-w-0">
+                    <h4 class="text-lg font-semibold text-text-light-primary dark:text-text-dark-primary mb-2">
+                        ${escapeHtml(step.step_name)}
+                    </h4>
+                    ${step.step_description ? `
+                        <p class="text-sm text-text-light-secondary dark:text-text-dark-secondary mb-2">
+                            ${escapeHtml(step.step_description)}
+                        </p>
+                    ` : ''}
+                    <div class="flex items-center gap-2 text-xs text-text-light-secondary dark:text-text-dark-secondary">
+                        <span class="px-2 py-1 rounded-full bg-gray-100 dark:bg-gray-800">
+                            ${escapeHtml(step.skill_id)}
+                        </span>
+                    </div>
+                </div>
+                
+                <!-- 连接线（不是最后一个步骤时显示） -->
+                ${!isLast ? `
+                    <div class="absolute left-10 top-20 w-0.5 h-12 bg-border-light dark:bg-border-dark"></div>
+                ` : ''}
+            </div>
+        `;
+    }).join('');
+    
+    return `
+        <div class="w-full max-w-3xl mb-6">
+            <div class="border-2 border-primary/30 rounded-xl overflow-hidden bg-gradient-to-br from-blue-50/50 to-purple-50/50 dark:from-blue-900/10 dark:to-purple-900/10">
+                <!-- Header -->
+                <div class="px-6 py-4 bg-primary/5 border-b border-primary/20">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-full bg-primary flex items-center justify-center">
+                            <span class="text-white text-xl">📚</span>
+                        </div>
+                        <div class="flex-1">
+                            <h3 class="text-xl font-bold text-text-light-primary dark:text-text-dark-primary">
+                                学习包生成计划
+                            </h3>
+                            <p class="text-sm text-text-light-secondary dark:text-text-dark-secondary mt-1">
+                                主题：${escapeHtml(topic)} · 共 ${totalSteps} 个步骤
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Steps -->
+                <div class="p-6 space-y-4 relative">
+                    ${stepsHtml}
+                </div>
+                
+                <!-- Footer -->
+                <div class="px-6 py-3 bg-gray-50 dark:bg-gray-900 border-t border-border-light dark:border-border-dark">
+                    <p class="text-xs text-text-light-secondary dark:text-text-dark-secondary text-center">
+                        ⏳ 准备开始生成...
+                    </p>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
 // 🆕 渲染思考过程（支持Markdown和LaTeX）
 function renderThinkingProcess(thinking) {
     if (!thinking) return '';
