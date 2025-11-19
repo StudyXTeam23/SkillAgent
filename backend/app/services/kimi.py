@@ -70,19 +70,8 @@ class KimiClient:
         model_to_use = model or self.model
         
         # Kimi API 使用 OpenAI 格式
+        # ⚠️ 注意：skill prompt 已经包含详细指导，这里保持简洁
         messages = [
-            {
-                "role": "system", 
-                "content": (
-                    "你是 Kimi，由 Moonshot AI 提供的人工智能助手。\n\n"
-                    "⚡ 思考策略：\n"
-                    "- 快速高效思考，控制在10-20秒内完成\n"
-                    "- 思考过程简洁明了，避免冗长重复\n"
-                    "- 直奔核心要点，省略不必要的细节\n"
-                    "- 优先输出高质量内容，而非长篇思考\n\n"
-                    "📝 输出原则：清晰、准确、高效"
-                )
-            },
             {"role": "user", "content": prompt}
         ]
         
@@ -169,19 +158,8 @@ class KimiClient:
         """
         model_to_use = model or self.model
         
+        # ⚠️ 注意：skill prompt 已经包含详细指导，这里保持简洁
         messages = [
-            {
-                "role": "system", 
-                "content": (
-                    "你是 Kimi，由 Moonshot AI 提供的人工智能助手。\n\n"
-                    "⚡ 思考策略：\n"
-                    "- 快速高效思考，控制在10-20秒内完成\n"
-                    "- 思考过程简洁明了，避免冗长重复\n"
-                    "- 直奔核心要点，省略不必要的细节\n"
-                    "- 优先输出高质量内容，而非长篇思考\n\n"
-                    "📝 输出原则：清晰、准确、高效"
-                )
-            },
             {"role": "user", "content": prompt}
         ]
         
