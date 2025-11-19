@@ -196,17 +196,17 @@ class KimiClient:
         reasoning_buffer = []
         
         try:
-            # Kimi 流式 API（参照在线版配置）
+            # Kimi 流式 API（使用OpenAI兼容参数）
             stream = await self.async_client.chat.completions.create(
                 model=model_to_use,
                 messages=messages,
                 temperature=temperature,
                 max_tokens=max_tokens,
-                top_p=1.0,  # ⚡ 在线版参数
-                top_k=50,  # ⚡ 在线版参数
-                presence_penalty=0,  # ⚡ 在线版参数
-                frequency_penalty=0,  # ⚡ 在线版参数
+                top_p=1.0,  # ⚡ 控制采样范围
+                presence_penalty=0.0,  # ⚡ 无重复惩罚
+                frequency_penalty=0.0,  # ⚡ 无频率惩罚
                 stream=True
+                # ⚠️ 注意：top_k不被OpenAI API支持，已移除
             )
             
             async for chunk in stream:
