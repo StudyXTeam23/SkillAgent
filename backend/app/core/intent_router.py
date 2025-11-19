@@ -11,7 +11,7 @@ Intent Router - 意图识别路由器
 import logging
 import json
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict, List, Any
 from datetime import datetime
 
 from ..services.gemini import GeminiClient
