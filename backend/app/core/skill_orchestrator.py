@@ -1031,12 +1031,8 @@ class SkillOrchestrator:
         Returns:
             Skill 执行结果
         """
-        # 从 registry 获取 skill
-        skill = None
-        for s in self.skill_registry.skills:
-            if s.id == skill_id:
-                skill = s
-                break
+        # 从 registry 获取 skill（使用公共方法）
+        skill = self.skill_registry.get_skill(skill_id)
         
         if not skill:
             raise ValueError(f"Skill not found: {skill_id}")
