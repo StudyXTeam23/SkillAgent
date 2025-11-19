@@ -62,10 +62,11 @@ output_schema:
     - "formal_definition"
 
 models:
-  primary: "moonshotai/kimi-k2-thinking"  # 🆕 使用 2.5 Flash 支持思考模型
+  primary: "moonshotai/kimi-k2-thinking"  # 🆕 使用 Kimi thinking 模型
   fallback: "moonshotai/kimi-k2-thinking"
 
-thinking_budget: 1024  # 🆕 思考预算，0-24576 (0=无思考, 1024=中等, 更高=深度思考)
+thinking_budget: 512  # ⚡ 优化：降低至512加快速度（原1024），减少50%思考时间
+temperature: 0.7  # ⚡ 优化：提高temperature加快生成速度（默认0.6）
 
 context:
   need_user_memory: true

@@ -135,7 +135,7 @@ class KimiClient:
         self,
         prompt: str,
         model: Optional[str] = None,
-        temperature: float = 0.6,
+        temperature: float = 0.7,  # ⚡ 优化：默认0.7加快生成速度（原0.6）
         max_tokens: int = 4096,
         thinking_budget: Optional[int] = None,
         return_thinking: bool = True,
