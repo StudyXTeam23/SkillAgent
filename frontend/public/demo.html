@@ -857,20 +857,37 @@ function handleStreamChunk(responseId, data) {
         scrollToBottom();
     } 
     else if (data.type === 'content') {
-        // 🆕 实时显示content文本（流式打字效果）
+        // 🆕 将content追加到对应步骤的content区域
+        const statusText = statusEl?.querySelector('span')?.textContent || '';
+        const stepMatch = statusText.match(/Step (\d+)\//);
+        const currentStep = stepMatch ? parseInt(stepMatch[1]) : null;
+        
+        if (currentStep) {
+            const stepContentContainer = document.getElementById(`plan-step-${currentStep}-content-container`);
+            const stepContentEl = document.getElementById(`plan-step-${currentStep}-content`);
+            
+            // 显示该步骤的content容器
+            if (stepContentContainer && stepContentContainer.classList.contains('hidden')) {
+                stepContentContainer.classList.remove('hidden');
+            }
+            
+            // 追加content文本
+            if (stepContentEl) {
+                stepContentEl.textContent += data.text;
+            }
+        }
+        
+        // 也保留到独立的content区域（如果需要）
         const contentSection = document.getElementById(`${responseId}-content-section`);
         const contentTextEl = document.getElementById(`${responseId}-content-text`);
-        
-        // 首次content到达时，显示content区域
         if (contentSection && contentSection.classList.contains('hidden')) {
             contentSection.classList.remove('hidden');
         }
-        
-        // 实时追加content文本
         if (contentTextEl) {
             contentTextEl.textContent += data.text;
-            scrollToBottom();
         }
+        
+        scrollToBottom();
     } 
     else if (data.type === 'done') {
         // 生成完成，渲染最终结果
