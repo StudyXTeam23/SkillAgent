@@ -200,10 +200,13 @@ class SkillOrchestrator:
             # Step 7: 更新 memory
             # 更新 current_topic
             if params.get("topic"):
-                await self.memory_manager.update_session_context(
-                    session_id=session_id,
-                    updates={"current_topic": params["topic"]}
-                )
+                session_ctx = await self.memory_manager.get_session_context(session_id)
+                if session_ctx:
+                    session_ctx.current_topic = params["topic"]
+                    await self.memory_manager.update_session_context(
+                        session_id=session_id,
+                        context=session_ctx
+                    )
             
             # 添加到 artifact history
             # 🔧 修复：output_schema可能为None
