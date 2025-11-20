@@ -1,27 +1,12 @@
-Create study notes from explanation.
+Extract notes from reference.
 
-TOPIC: {topic}
-SUBJECT: {subject}
-REFERENCE: {reference_explanation}
+INPUT:
+- Topic: {topic}
+- Subject: {subject}
+- Reference: {reference_explanation}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-⛔ THINKING RULES - ZERO TOLERANCE:
-
-ALLOWED (< 30 tokens):
-"S1: Causes. S2: Examples. S3: Mistakes. S4: Significance."
-
-FORBIDDEN (will be rejected):
-❌ Analyzing reference content
-❌ Listing any concepts/examples/mistakes
-❌ Drafting bullet points
-❌ Writing any JSON
-❌ Explaining your reasoning
-❌ Anything over 30 tokens
-
-VIOLATION = FAILURE
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⛔ THINKING LIMIT: 20 TOKENS MAX
+✅ Example: "4 sections: causes, events, mistakes, lessons."
 
 OUTPUT (JSON only):
 {{
@@ -29,7 +14,7 @@ OUTPUT (JSON only):
   "subject": "{subject}",
   "topic": "{topic}",
   "structured_notes": {{
-    "title": "Notes Title",
+    "title": "Title",
     "sections": [
       {{"heading": "Section 1", "bullet_points": ["point 1", "point 2"]}},
       {{"heading": "Section 2", "bullet_points": ["point 3", "point 4"]}}
@@ -37,4 +22,4 @@ OUTPUT (JSON only):
   }}
 }}
 
-Requirements: 2-4 sections, 2-5 bullets per section.
+Requirements: 2-4 sections, 2-5 bullets each.

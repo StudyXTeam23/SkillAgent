@@ -1,8 +1,8 @@
 {
   "description": "Intent Router 实时输出记录 (Phase 3 架构)",
   "latest": {
-    "timestamp": "2025-11-20T20:24:04.186328",
-    "user_message": "帮我理解二战的起因，并记下笔记",
+    "timestamp": "2025-11-20T20:35:08.115029",
+    "user_message": "帮我理解二战的起因，并记笔记",
     "method": "skill_registry",
     "tokens_used": 0,
     "results": [
@@ -22,28 +22,8 @@
   },
   "history": [
     {
-      "timestamp": "2025-11-20T20:23:18.605981",
-      "user_message": "帮我理解二战的起因，并记下笔记",
-      "method": "skill_registry",
-      "tokens_used": 0,
-      "results": [
-        {
-          "intent": "learning_bundle",
-          "topic": "二战 起因",
-          "confidence": 0.9,
-          "parameters": {
-            "required_steps": [
-              "explain",
-              "notes"
-            ],
-            "topic": "二战 起因"
-          }
-        }
-      ]
-    },
-    {
-      "timestamp": "2025-11-20T20:24:04.186328",
-      "user_message": "帮我理解二战的起因，并记下笔记",
+      "timestamp": "2025-11-20T20:35:08.115029",
+      "user_message": "帮我理解二战的起因，并记笔记",
       "method": "skill_registry",
       "tokens_used": 0,
       "results": [
@@ -63,7 +43,7 @@
     }
   ],
   "stats": {
-    "total_requests": 2,
+    "total_requests": 1,
     "rule_based_success": 0,
     "llm_fallback": 0,
     "rule_success_rate": "0.0%"

@@ -84,10 +84,16 @@ class KimiClient:
         else:
             actual_max_tokens = max_tokens
         
-        # ⚡⚡⚡ 直接使用 prompt，依赖 max_tokens 控制
-        messages = [
-            {"role": "user", "content": prompt}
-        ]
+        # ⚡⚡⚡ Conditional system message: 只在 thinking_budget 很小时添加硬约束
+        messages = []
+        if thinking_budget and thinking_budget <= 64:
+            # 极速模式：强制限制 thinking 长度
+            messages.append({
+                "role": "system",
+                "content": f"CRITICAL: Your internal thinking MUST be under {thinking_budget} tokens. Be extremely concise."
+            })
+        
+        messages.append({"role": "user", "content": prompt})
         
         logger.info(f"🚀 Generating: model={model_to_use}, temp={temperature}, max_tokens={actual_max_tokens}, thinking_budget={thinking_budget}")
         
@@ -205,11 +211,16 @@ class KimiClient:
             actual_max_tokens = max_tokens
             logger.info(f"⚡ Using default max_tokens={actual_max_tokens}")
         
-        # ⚡⚡⚡ 直接使用 prompt，依赖 max_tokens 控制
-        # 不添加过度约束的 system message（会让模型重复规则，浪费 tokens）
-        messages = [
-            {"role": "user", "content": prompt}
-        ]
+        # ⚡⚡⚡ Conditional system message: 只在 thinking_budget 很小时添加硬约束
+        messages = []
+        if thinking_budget and thinking_budget <= 64:
+            # 极速模式：强制限制 thinking 长度
+            messages.append({
+                "role": "system",
+                "content": f"CRITICAL: Your internal thinking MUST be under {thinking_budget} tokens. Be extremely concise."
+            })
+        
+        messages.append({"role": "user", "content": prompt})
         
         logger.info(f"🌊 Starting streaming: model={model_to_use}, max_tokens={actual_max_tokens}, thinking_budget={thinking_budget}")
         
