@@ -34,6 +34,18 @@ input_schema:
       enum: ["easy", "medium", "hard"]
       description: "整体难度级别"
       default: "medium"
+    flashcard_quantity:
+      type: integer
+      description: "闪卡数量"
+      default: 5
+      minimum: 1
+      maximum: 20
+    quiz_quantity:
+      type: integer
+      description: "题目数量"
+      default: 3
+      minimum: 1
+      maximum: 10
     memory_summary:
       type: string
       description: "用户学习画像摘要"
