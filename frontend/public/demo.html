@@ -1103,6 +1103,11 @@ function handleStreamChunk(responseId, data) {
         // 生成完成，渲染最终结果
         if (statusEl) statusEl.remove();
         
+        // 🔍 Debug: 打印完整的done事件数据
+        console.log('[DEBUG] Done event data:', JSON.stringify(data, null, 2));
+        console.log('[DEBUG] data.content:', data.content);
+        console.log('[DEBUG] data.content.reasoning_summary:', data.content?.reasoning_summary);
+        
         // 🆕 优先使用模型生成的reasoning_summary
         if (data.content && data.content.reasoning_summary) {
             const thinkingOverview = document.getElementById(`${responseId}-thinking-overview`);
@@ -1111,6 +1116,7 @@ function handleStreamChunk(responseId, data) {
                 const pulseIcon = thinkingOverview.querySelector('.animate-pulse');
                 if (overviewText) {
                     // 🔥 使用模型生成的summary（优先级最高）
+                    console.log('[DEBUG] Updating summary to:', data.content.reasoning_summary);
                     overviewText.textContent = `✨ ${data.content.reasoning_summary}`;
                     overviewText.style.whiteSpace = 'normal';
                     overviewText.style.wordBreak = 'break-word';
@@ -1124,8 +1130,8 @@ function handleStreamChunk(responseId, data) {
             }
         } else {
             // ⚠️ Fallback：如果没有reasoning_summary，保留"正在生成内容"状态
-            // 不再使用extractThinkingSummary提取（避免中英文混杂）
-            console.log('No reasoning_summary in done event, keeping current status');
+            console.warn('[WARN] No reasoning_summary in done event');
+            console.log('[DEBUG] Available keys in data.content:', data.content ? Object.keys(data.content) : 'null');
         }
         
         // 检测是否是Plan Skill

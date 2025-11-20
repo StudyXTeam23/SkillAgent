@@ -1,14 +1,14 @@
 {
   "description": "Intent Router 实时输出记录 (Phase 3 架构)",
   "latest": {
-    "timestamp": "2025-11-20T11:26:45.270154",
-    "user_message": "光合作用学习包",
+    "timestamp": "2025-11-20T11:46:06.356103",
+    "user_message": "帮我理解二战的起因",
     "method": "rule_engine",
     "tokens_used": 0,
     "results": [
       {
-        "intent": "learning_bundle",
-        "topic": "光合作用",
+        "intent": "explain_request",
+        "topic": "理解二战 起因",
         "confidence": 0.95,
         "parameters": {}
       }
@@ -16,42 +16,14 @@
   },
   "history": [
     {
-      "timestamp": "2025-11-20T11:04:25.912182",
-      "user_message": "什么是光合作用",
+      "timestamp": "2025-11-20T11:46:06.356103",
+      "user_message": "帮我理解二战的起因",
       "method": "rule_engine",
       "tokens_used": 0,
       "results": [
         {
           "intent": "explain_request",
-          "topic": "光合作用",
-          "confidence": 0.95,
-          "parameters": {}
-        }
-      ]
-    },
-    {
-      "timestamp": "2025-11-20T11:22:26.457773",
-      "user_message": "什么是光合作用",
-      "method": "rule_engine",
-      "tokens_used": 0,
-      "results": [
-        {
-          "intent": "explain_request",
-          "topic": "光合作用",
-          "confidence": 0.95,
-          "parameters": {}
-        }
-      ]
-    },
-    {
-      "timestamp": "2025-11-20T11:26:45.270154",
-      "user_message": "光合作用学习包",
-      "method": "rule_engine",
-      "tokens_used": 0,
-      "results": [
-        {
-          "intent": "learning_bundle",
-          "topic": "光合作用",
+          "topic": "理解二战 起因",
           "confidence": 0.95,
           "parameters": {}
         }
@@ -59,8 +31,8 @@
     }
   ],
   "stats": {
-    "total_requests": 3,
-    "rule_based_success": 3,
+    "total_requests": 1,
+    "rule_based_success": 1,
     "llm_fallback": 0,
     "rule_success_rate": "100.0%"
   }
