@@ -1019,14 +1019,23 @@ function handleStreamChunk(responseId, data) {
                         }
                         thinkingOverview.style.backgroundColor = 'rgba(251, 191, 36, 0.1)';
                     } else if (!isThinkingEnding) {
-                        // 正常thinking阶段，继续更新summary
-                        // 🔥 降低更新频率：只在thinking内容达到一定长度或出现句号时才更新
+                        // 🔥 正常thinking阶段，只提取中文summary
                         const shouldUpdate = fullText.length % 200 < 10 || /[.。!！?？]/.test(data.text);
                         if (shouldUpdate) {
-                            const summary = extractThinkingSummary(fullText);
-                            // 只在summary真正改变时才更新（避免相同内容的闪烁）
-                            if (overviewText.textContent !== summary) {
-                                overviewText.textContent = summary;
+                            // 只提取最后的中文句子（避免中英文混杂）
+                            const chineseSentences = fullText.match(/[\u4e00-\u9fa5，。！？；：、""''（）\s]+[。！？]/g);
+                            if (chineseSentences && chineseSentences.length > 0) {
+                                // 取最后1-2句中文，作为summary
+                                const lastSentence = chineseSentences[chineseSentences.length - 1].trim();
+                                const shortSummary = lastSentence.length > 80 ? lastSentence.slice(0, 80) + '...' : lastSentence;
+                                if (overviewText.textContent !== shortSummary) {
+                                    overviewText.textContent = shortSummary;
+                                }
+                            } else {
+                                // 没有中文句子，显示默认状态
+                                if (!overviewText.textContent || overviewText.textContent === '') {
+                                    overviewText.textContent = '🤔 正在深入思考...';
+                                }
                             }
                         }
                     }
@@ -1037,7 +1046,7 @@ function handleStreamChunk(responseId, data) {
         scrollToBottom();
     } 
     else if (data.type === 'content') {
-        // 🆕 显示内容生成进度 + 实时预览
+        // 🔥 流式显示实际内容（quiz、flashcard等）
         const statusText = statusEl?.querySelector('span')?.textContent || '';
         const isPlanSkill = statusText.includes('Step') && statusText.includes('/');
         const stepMatch = statusText.match(/Step (\d+)\//);
@@ -1046,38 +1055,68 @@ function handleStreamChunk(responseId, data) {
         // 统计累计字符数
         const contentLength = data.accumulated ? data.accumulated.length : 0;
         
-        // 🔥 新增：尝试解析部分JSON并显示预览
-        let previewText = '';
-        if (data.accumulated) {
+        // 🔥 实时解析并显示内容片段
+        let previewHTML = '';
+        if (data.accumulated && contentLength > 100) {
             try {
-                // 尝试提取已完成的字段
-                const jsonMatch = data.accumulated.match(/"(concept|intuition|reasoning_summary)":\s*"([^"]+)"/);
-                if (jsonMatch) {
-                    const fieldName = jsonMatch[1];
-                    const fieldValue = jsonMatch[2];
-                    if (fieldName === 'concept') {
-                        previewText = `概念: ${fieldValue}...`;
-                    } else if (fieldName === 'intuition') {
-                        previewText = `直觉: ${fieldValue.slice(0, 50)}...`;
-                    } else if (fieldName === 'reasoning_summary') {
-                        previewText = fieldValue;
+                // 尝试提取quiz题目、flashcard等
+                const quizMatch = data.accumulated.match(/"question_text":\s*"([^"]+)"/g);
+                const flashcardMatch = data.accumulated.match(/"front":\s*"([^"]+)"/g);
+                const conceptMatch = data.accumulated.match(/"concept":\s*"([^"]+)"/);
+                const intuitionMatch = data.accumulated.match(/"intuition":\s*"([^"]+)"/);
+                
+                if (quizMatch) {
+                    // Quiz题目流式显示
+                    previewHTML = '<div class="space-y-2">';
+                    quizMatch.slice(0, 3).forEach((match, idx) => {
+                        const question = match.match(/"question_text":\s*"([^"]+)"/)[1];
+                        previewHTML += `<div class="text-sm"><strong>题目${idx+1}:</strong> ${question}</div>`;
+                    });
+                    if (quizMatch.length > 3) {
+                        previewHTML += `<div class="text-xs text-gray-500">... 共${quizMatch.length}道题</div>`;
                     }
+                    previewHTML += '</div>';
+                } else if (flashcardMatch) {
+                    // Flashcard流式显示
+                    previewHTML = '<div class="space-y-2">';
+                    flashcardMatch.slice(0, 3).forEach((match, idx) => {
+                        const front = match.match(/"front":\s*"([^"]+)"/)[1];
+                        previewHTML += `<div class="text-sm"><strong>卡片${idx+1}:</strong> ${front}</div>`;
+                    });
+                    if (flashcardMatch.length > 3) {
+                        previewHTML += `<div class="text-xs text-gray-500">... 共${flashcardMatch.length}张卡片</div>`;
+                    }
+                    previewHTML += '</div>';
+                } else if (conceptMatch || intuitionMatch) {
+                    // Explanation流式显示
+                    previewHTML = '<div class="space-y-1 text-sm">';
+                    if (conceptMatch) {
+                        previewHTML += `<div><strong>概念:</strong> ${conceptMatch[1]}</div>`;
+                    }
+                    if (intuitionMatch) {
+                        const intuition = intuitionMatch[1].slice(0, 100);
+                        previewHTML += `<div><strong>直觉:</strong> ${intuition}...</div>`;
+                    }
+                    previewHTML += '</div>';
                 }
             } catch (e) {
-                // 解析失败，忽略
+                console.warn('Content preview parse error:', e);
             }
         }
         
+        // 更新summary和preview
         if (isPlanSkill && currentStep) {
-            // Plan Skill：更新thinking summary
             const thinkingSummary = document.getElementById(`plan-step-${currentStep}-thinking-summary`);
             if (thinkingSummary) {
                 const summaryText = thinkingSummary.querySelector('.thinking-summary-text');
                 const pulseIcon = thinkingSummary.querySelector('.animate-pulse');
                 
                 if (summaryText) {
-                    const displayText = previewText || `📝 正在生成内容... (${contentLength} chars)`;
-                    summaryText.textContent = displayText;
+                    if (previewHTML) {
+                        summaryText.innerHTML = previewHTML;
+                    } else {
+                        summaryText.textContent = `📝 正在生成内容... (${contentLength} chars)`;
+                    }
                     if (pulseIcon) {
                         pulseIcon.classList.remove('bg-blue-500', 'bg-yellow-500');
                         pulseIcon.classList.add('bg-green-500');
@@ -1085,15 +1124,17 @@ function handleStreamChunk(responseId, data) {
                 }
             }
         } else {
-            // 普通Skill：更新thinking overview
             const thinkingOverview = document.getElementById(`${responseId}-thinking-overview`);
             if (thinkingOverview) {
                 const overviewText = document.getElementById(`${responseId}-thinking-overview-text`);
                 const pulseIcon = thinkingOverview.querySelector('.animate-pulse');
                 
                 if (overviewText) {
-                    const displayText = previewText || `📝 正在生成内容... (${contentLength} chars)`;
-                    overviewText.textContent = displayText;
+                    if (previewHTML) {
+                        overviewText.innerHTML = previewHTML;
+                    } else {
+                        overviewText.textContent = `📝 正在生成内容... (${contentLength} chars)`;
+                    }
                     if (pulseIcon) {
                         pulseIcon.classList.remove('bg-blue-500', 'bg-yellow-500');
                         pulseIcon.classList.add('bg-green-500');
