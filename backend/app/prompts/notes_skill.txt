@@ -15,6 +15,11 @@ Instructions:
 - Keep total length: 300-500 words
 - Base ONLY on the reference content above
 
+Thinking Guidelines:
+- Think efficiently: identify key themes, plan section structure
+- DO NOT draft full JSON in thinking - just outline sections
+- Keep reasoning brief and focused
+
 Output Format:
 {{
   "notes_id": "notes_{topic}",
@@ -29,4 +34,7 @@ Output Format:
   }}
 }}
 
-Output ONLY valid JSON.
+CRITICAL:
+- Output ONLY valid JSON
+- If text contains quotes, use single quotes ('text') or escape them (\"text\")
+- Ensure all strings are properly closed
