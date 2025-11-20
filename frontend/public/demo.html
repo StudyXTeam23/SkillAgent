@@ -641,45 +641,6 @@ function createStreamingResponseContainer(responseId) {
                 
                 <!-- 🆕 Plan预览区域（最上面，独立显示） -->
                 <div id="${responseId}-plan-preview" class="w-full hidden"></div>
-                
-                <!-- 思考过程区域（可折叠，带滚动条） -->
-                <div id="${responseId}-thinking-section" class="w-full rounded-xl border border-border-light dark:border-border-dark bg-gray-50 dark:bg-gray-900/50 overflow-hidden hidden">
-                    <details class="group" open>
-                        <summary class="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-                            <div class="flex items-center gap-2">
-                                <svg class="w-5 h-5 text-primary transition-transform group-open:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
-                                </svg>
-                                <span class="text-sm font-semibold text-text-light-primary dark:text-text-dark-primary">💭 思考过程</span>
-                            </div>
-                            <button onclick="document.getElementById('${responseId}-thinking-section').classList.add('hidden')" 
-                                    class="text-xs text-text-light-secondary dark:text-text-dark-secondary hover:text-primary px-2 py-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700">
-                                隐藏
-                            </button>
-                        </summary>
-                        <div class="px-4 py-3 border-t border-border-light dark:border-border-dark max-h-96 overflow-y-auto">
-                            <pre id="${responseId}-thinking-content" class="whitespace-pre-wrap text-sm text-text-light-secondary dark:text-text-dark-secondary leading-relaxed"></pre>
-                        </div>
-                    </details>
-                </div>
-                
-                <!-- Content流式显示区域（JSON原始文本） -->
-                <div id="${responseId}-content-section" class="w-full rounded-xl border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark overflow-hidden hidden">
-                    <div class="px-4 py-3 bg-green-50 dark:bg-green-900/20 border-b border-border-light dark:border-border-dark">
-                        <div class="flex items-center gap-2">
-                            <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-                            </svg>
-                            <span class="text-sm font-semibold text-green-700 dark:text-green-400">✍️ 正在编写完整的JSON...</span>
-                        </div>
-                    </div>
-                    <div class="px-4 py-3 max-h-96 overflow-y-auto">
-                        <pre id="${responseId}-content-text" class="whitespace-pre-wrap text-xs font-mono text-text-light-primary dark:text-text-dark-primary leading-relaxed"></pre>
-                    </div>
-                </div>
-                
-                <!-- 最终结果区域（格式化的卡片UI） -->
-                <div id="${responseId}-final" class="w-full hidden"></div>
             </div>
         </div>
     `;
@@ -692,11 +653,6 @@ function handleStreamChunk(responseId, data) {
     
     const statusEl = document.getElementById(`${responseId}-status`);
     const planPreviewEl = document.getElementById(`${responseId}-plan-preview`);
-    const thinkingSection = document.getElementById(`${responseId}-thinking-section`);
-    const thinkingEl = document.getElementById(`${responseId}-thinking-content`);
-    const contentSection = document.getElementById(`${responseId}-content-section`);
-    const contentTextEl = document.getElementById(`${responseId}-content-text`);
-    const finalEl = document.getElementById(`${responseId}-final`);
     
     if (data.type === 'status') {
         if (statusEl) {
@@ -827,33 +783,6 @@ function handleStreamChunk(responseId, data) {
             }
         }
         
-        // 也保留到独立的thinking区域（如果需要）
-        if (thinkingSection && thinkingSection.classList.contains('hidden')) {
-            thinkingSection.classList.remove('hidden');
-        }
-        if (thinkingEl) {
-            thinkingEl.textContent += data.text;
-            let renderedText = thinkingEl.textContent
-                .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold text-text-light-primary dark:text-text-dark-primary">$1</strong>');
-            thinkingEl.innerHTML = renderedText;
-            
-            if (typeof renderMathInElement !== 'undefined') {
-                try {
-                    renderMathInElement(thinkingEl, {
-                        delimiters: [
-                            {left: '$$', right: '$$', display: true},
-                            {left: '$', right: '$', display: false},
-                            {left: '\\[', right: '\\]', display: true},
-                            {left: '\\(', right: '\\)', display: false}
-                        ],
-                        throwOnError: false
-                    });
-                } catch (e) {
-                    console.warn('LaTeX rendering error:', e);
-                }
-            }
-        }
-        
         scrollToBottom();
     } 
     else if (data.type === 'content') {
@@ -875,16 +804,6 @@ function handleStreamChunk(responseId, data) {
             if (stepContentEl) {
                 stepContentEl.textContent += data.text;
             }
-        }
-        
-        // 也保留到独立的content区域（如果需要）
-        const contentSection = document.getElementById(`${responseId}-content-section`);
-        const contentTextEl = document.getElementById(`${responseId}-content-text`);
-        if (contentSection && contentSection.classList.contains('hidden')) {
-            contentSection.classList.remove('hidden');
-        }
-        if (contentTextEl) {
-            contentTextEl.textContent += data.text;
         }
         
         scrollToBottom();
@@ -1092,6 +1011,19 @@ function renderPlanPreview(topic, stepsPreview, totalSteps) {
                     <p class="text-xs text-text-light-secondary dark:text-text-dark-secondary text-center">
                         ⏳ 准备开始生成...
                     </p>
+                </div>
+                
+                <!-- 🆕 最终结果区域（在Plan内部） -->
+                <div id="plan-final-result" class="hidden border-t-2 border-primary/30">
+                    <div class="px-6 py-4 bg-green-50 dark:bg-green-900/20">
+                        <h4 class="text-lg font-bold text-green-700 dark:text-green-400 flex items-center gap-2">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                            ✅ 学习包生成完成
+                        </h4>
+                    </div>
+                    <div id="plan-final-content" class="p-6 bg-white dark:bg-gray-800"></div>
                 </div>
             </div>
         </div>
