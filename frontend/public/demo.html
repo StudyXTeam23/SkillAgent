@@ -751,67 +751,103 @@ async function saveThinkingOverviewDebug(responseId, fullThinking, finalOverview
     }
 }
 
-// 🆕 从thinking文本中提取思考动机和计划
+// 🆕 从thinking文本中提取实际思考内容（支持英文thinking）
 function extractThinkingMotivation(thinkingText) {
     if (!thinkingText) return '🤔 正在思考...';
     
-    // 优先级1：提取"我需要"、"我应该"、"计划"等动机句子
-    const motivationPatterns = [
-        /(?:我需要|我应该|需要|应该|计划|打算)[^。！？\n]{10,60}[。！？]/g,
-        /(?:Let me|I need to|I should|I'll)[^.\n]{10,80}[.]/gi,
-        /(?:下一步|接下来|然后)[^。！？\n]{10,60}[。！？]/g,
-        /(?:为了|目的是)[^。！？\n]{10,60}[。！？]/g,
-        /(?:Strategy|Approach|Plan):[^.\n]{10,80}[.]/gi
+    // 策略：从最后往前找最新的有意义句子，并转换为中文描述
+    
+    // 1. 提取最近的英文关键句子（带语义的完整句子）
+    const meaningfulPatterns = [
+        // 理解用户需求
+        {
+            pattern: /(?:user|they|request)[^.]{10,100}(?:asking|wants?|needs?|requesting)[^.]{0,80}\./gi,
+            transform: (match) => {
+                // 提取主题
+                const topicMatch = match.match(/["「『]([^"」』]+)["」』]/);
+                if (topicMatch) {
+                    return `正在理解需求：${topicMatch[1]}`;
+                }
+                return '正在理解用户需求';
+            }
+        },
+        // 评估复杂度
+        {
+            pattern: /(?:this is|it(?:'s| is))[^.]{0,50}(?:simple|complex|medium|easy|difficult)[^.]{0,80}\./gi,
+            transform: (match) => {
+                if (/simple|easy/i.test(match)) return '评估为简单问题，准备简洁讲解';
+                if (/complex|difficult/i.test(match)) return '评估为复杂问题，准备深入分析';
+                return '正在评估问题难度';
+            }
+        },
+        // 规划策略
+        {
+            pattern: /(?:should|need to|will|plan to)[^.]{10,100}(?:focus|provide|explain|structure)[^.]{0,80}\./gi,
+            transform: (match) => {
+                if (/focus.*intuition/i.test(match)) return '计划侧重直觉理解和具体示例';
+                if (/focus.*example/i.test(match)) return '计划提供多个实际例子';
+                if (/structure|organize/i.test(match)) return '正在规划回答结构';
+                const actionMatch = match.match(/(?:focus on|provide|explain|include)\s+([^,\.]+)/i);
+                if (actionMatch) {
+                    return `计划重点：${actionMatch[1].trim()}`;
+                }
+                return '正在规划回答策略';
+            }
+        },
+        // 构建内容
+        {
+            pattern: /(?:let me|I will|I'll|going to)[^.]{10,100}(?:create|build|structure|provide|explain)[^.]{0,80}\./gi,
+            transform: (match) => {
+                if (/example/i.test(match)) return '正在设计具体示例';
+                if (/intuition/i.test(match)) return '正在构思直观解释';
+                if (/definition/i.test(match)) return '正在准备正式定义';
+                return '正在组织内容结构';
+            }
+        },
+        // 检查验证
+        {
+            pattern: /(?:check|verify|ensure|make sure)[^.]{10,100}\./gi,
+            transform: (match) => {
+                return `正在检查：${match.slice(0, 40).replace(/^(?:check|verify|ensure|make sure)\s*/i, '')}...`;
+            }
+        }
     ];
     
-    for (const pattern of motivationPatterns) {
+    // 2. 按优先级尝试匹配
+    for (const {pattern, transform} of meaningfulPatterns) {
         const matches = thinkingText.match(pattern);
         if (matches && matches.length > 0) {
             // 取最后一个匹配（最新的思考）
-            let motivation = matches[matches.length - 1].trim();
-            // 移除开头的连接词
-            motivation = motivation.replace(/^(?:然后|接下来|下一步|Let me|So|Therefore|Thus)[,，:\s]*/i, '');
-            // 限制长度
-            if (motivation.length > 80) {
-                motivation = motivation.slice(0, 80) + '...';
+            const lastMatch = matches[matches.length - 1];
+            try {
+                const result = transform(lastMatch);
+                if (result && result.length > 5) {
+                    return result;
+                }
+            } catch (e) {
+                console.warn('Transform error:', e);
             }
-            return motivation;
         }
     }
     
-    // 优先级2：提取关键决策句（包含"选择"、"决定"、"使用"等）
-    const decisionPatterns = [
-        /(?:选择|决定|使用|采用)[^。！？\n]{10,60}[。！？]/g,
-        /(?:Choose|Decide|Use|Adopt)[^.\n]{10,80}[.]/gi
-    ];
-    
-    for (const pattern of decisionPatterns) {
-        const matches = thinkingText.match(pattern);
-        if (matches && matches.length > 0) {
-            let decision = matches[matches.length - 1].trim();
-            if (decision.length > 80) {
-                decision = decision.slice(0, 80) + '...';
-            }
-            return decision;
-        }
-    }
-    
-    // 优先级3：提取最后的完整中文句子
-    const chineseSentences = thinkingText.match(/[\u4e00-\u9fa5][^。！？]{15,80}[。！？]/g);
+    // 3. 兜底：提取任何有意义的中文句子
+    const chineseSentences = thinkingText.match(/[\u4e00-\u9fa5][^。！？\n]{10,60}[。！？]/g);
     if (chineseSentences && chineseSentences.length > 0) {
-        let lastSentence = chineseSentences[chineseSentences.length - 1].trim();
-        if (lastSentence.length > 80) {
-            lastSentence = lastSentence.slice(0, 80) + '...';
+        let sentence = chineseSentences[chineseSentences.length - 1].trim();
+        // 移除引号和括号
+        sentence = sentence.replace(/["「『\(（][^"」』\)）]+["」』\)）]/g, '');
+        if (sentence.length > 10 && sentence.length < 80) {
+            return sentence;
         }
-        return lastSentence;
     }
     
-    // 兜底：根据长度显示默认状态
+    // 4. 最后兜底：根据长度给出通用状态
     const length = thinkingText.length;
-    if (length < 100) return '🔍 正在分析问题...';
-    if (length < 300) return '💡 正在规划策略...';
-    if (length < 600) return '📝 正在组织内容...';
-    return '✨ 正在完善细节...';
+    if (length < 300) return '正在理解问题...';
+    if (length < 800) return '正在分析和规划...';
+    if (length < 1500) return '正在组织回答...';
+    if (length < 3000) return '正在完善细节...';
+    return '即将完成...';
 }
 
 // 🆕 流式渲染辅助函数
