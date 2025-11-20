@@ -1011,8 +1011,30 @@ function handleStreamChunk(responseId, data) {
         scrollToBottom();
     } 
     else if (data.type === 'content') {
-        // 🆕 隐藏JSON内容展示，只在后台累积，最终直接显示结果
-        // 不再显示content-section，提升用户体验
+        // 🆕 显示微妙的生成进度（不显示raw content，但给用户反馈）
+        // 检测是否是Plan Skill
+        const statusText = statusEl?.querySelector('span')?.textContent || '';
+        const isPlanSkill = statusText.includes('Step') && statusText.includes('/');
+        const stepMatch = statusText.match(/Step (\d+)\//);
+        const currentStep = stepMatch ? parseInt(stepMatch[1]) : null;
+        
+        if (isPlanSkill && currentStep) {
+            // Plan Skill：更新thinking summary显示生成进度
+            const thinkingSummary = document.getElementById(`plan-step-${currentStep}-thinking-summary`);
+            if (thinkingSummary) {
+                const summaryText = thinkingSummary.querySelector('.thinking-summary-text');
+                if (summaryText && !summaryText.textContent.includes('正在生成内容')) {
+                    summaryText.textContent = `正在生成内容...`;
+                }
+            }
+        } else if (thinkingOverview) {
+            // 普通Skill：更新thinking overview显示生成进度
+            const overviewText = document.getElementById(`${responseId}-thinking-overview-text`);
+            if (overviewText && !overviewText.textContent.includes('正在生成内容')) {
+                overviewText.textContent = '正在生成内容...';
+            }
+        }
+        
         scrollToBottom();
     } 
     else if (data.type === 'done') {
@@ -2106,70 +2128,96 @@ function detectContentType(content) {
 
 /**
  * 🆕 智能提取Thinking Summary
- * 从完整的thinking内容中识别AI的思考阶段，而不是简单提取第一句话
- * 
- * 识别模式：
- * - "正在分析..." / "正在生成..." / "正在整理..."
- * - "需要分析..." / "需要生成..." / "需要整理..."
- * - "我正在..." / "我将要..." / "我需要..."
+ * 从完整的thinking内容中识别AI的思考阶段
+ * 支持中英文混合的thinking内容
  * 
  * @param {string} thinkingText - 完整的thinking内容
- * @returns {string} - 提取的summary（最多50个字符）
+ * @returns {string} - 提取的summary（最多60个字符）
  */
 function extractThinkingSummary(thinkingText) {
     if (!thinkingText || thinkingText.trim().length === 0) {
         return '正在思考...';
     }
     
-    // 关键动作词列表
-    const actionWords = [
-        '分析', '生成', '整理', '验证', '构建', '思考', '提取', '总结', '规划',
-        '编写', '创建', '设计', '检查', '优化', '组织', '理解', '解释', '推理',
-        '评估', '选择', '确定', '识别', '比较', '综合', '归纳', '演绎'
+    const text = thinkingText.toLowerCase();
+    
+    // 🆕 英文模式匹配（Kimi的thinking通常是英文）
+    const englishPatterns = [
+        // "The user wants to..." / "The user needs..."
+        { pattern: /The user wants (?:me )?to ([^.]{10,50})/, template: (m) => `理解需求：${m[1].slice(0, 30)}...` },
+        { pattern: /The user (?:is asking|asks) (?:me )?to ([^.]{10,50})/, template: (m) => `理解需求：${m[1].slice(0, 30)}...` },
+        
+        // "I need to..." / "I should..."
+        { pattern: /I (?:need|should|will) (?:to )?(\w+)\s+([^.]{5,40})/, template: (m) => `正在${translateAction(m[1])}${m[2].slice(0, 20)}...` },
+        
+        // "Let me..." / "I'll..."
+        { pattern: /(?:Let me|I'll)\s+(\w+)\s+([^.]{5,40})/, template: (m) => `正在${translateAction(m[1])}${m[2].slice(0, 20)}...` },
+        
+        // "This is a ... concept/question"
+        { pattern: /This is a (\w+)\s+(concept|question|topic)/, template: (m) => `识别为${m[1] === 'simple' ? '简单' : m[1] === 'complex' ? '复杂' : ''}${m[2] === 'concept' ? '概念' : '问题'}` },
+        
+        // "I should follow the ... strategy"
+        { pattern: /I should follow the "?([^"]{5,30})"? strategy/, template: (m) => `应用策略：${m[1]}` },
+        
+        // "Let me structure/draft..."
+        { pattern: /Let me (structure|draft|create|generate) ([^.]{5,40})/, template: (m) => `正在${translateAction(m[1])}${m[2].slice(0, 20)}...` }
     ];
     
-    // 模式1: "正在XXX..." / "正在XXX核心概念..."
-    for (const action of actionWords) {
-        const pattern1 = new RegExp(`正在${action}[^。！？\\n]{0,40}`, 'g');
-        const match1 = thinkingText.match(pattern1);
-        if (match1 && match1[0]) {
-            return match1[0].slice(0, 50) + (match1[0].length > 50 ? '...' : '');
+    // 尝试英文模式匹配
+    for (const {pattern, template} of englishPatterns) {
+        const match = thinkingText.match(pattern);
+        if (match) {
+            try {
+                const summary = template(match);
+                if (summary && summary.length > 5) {
+                    return summary.slice(0, 60);
+                }
+            } catch (e) {
+                // 继续尝试下一个模式
+            }
         }
     }
     
-    // 模式2: "需要XXX..." / "需要XXX关键信息..."
-    for (const action of actionWords) {
-        const pattern2 = new RegExp(`需要${action}[^。！？\\n]{0,40}`, 'g');
-        const match2 = thinkingText.match(pattern2);
-        if (match2 && match2[0]) {
-            return match2[0].slice(0, 50) + (match2[0].length > 50 ? '...' : '');
+    // 中文模式匹配
+    const chineseActionWords = ['分析', '生成', '整理', '验证', '构建', '思考', '提取', '总结', '规划', '编写', '创建', '设计', '检查', '优化', '理解', '解释'];
+    
+    for (const action of chineseActionWords) {
+        const pattern = new RegExp(`(正在|需要|我正在|我需要)${action}[^。！？\\n]{0,30}`, 'g');
+        const match = thinkingText.match(pattern);
+        if (match && match[0]) {
+            return match[0].slice(0, 60);
         }
     }
     
-    // 模式3: "我正在XXX..." / "我将要XXX..." / "我需要XXX..."
-    for (const action of actionWords) {
-        const pattern3 = new RegExp(`我(正在|将要|需要)${action}[^。！？\\n]{0,40}`, 'g');
-        const match3 = thinkingText.match(pattern3);
-        if (match3 && match3[0]) {
-            return match3[0].slice(0, 50) + (match3[0].length > 50 ? '...' : '');
+    // 提取第一个有意义的句子（中文）
+    const sentences = thinkingText.split(/[。！？\n]/);
+    for (const sentence of sentences) {
+        const trimmed = sentence.trim();
+        if (trimmed.length > 10 && trimmed.length < 100) {
+            // 排除纯英文的长句
+            const chineseChars = trimmed.match(/[\u4e00-\u9fa5]/g);
+            if (chineseChars && chineseChars.length > 5) {
+                return trimmed.slice(0, 60) + (trimmed.length > 60 ? '...' : '');
+            }
         }
     }
     
-    // 模式4: 包含核心问题的句子（如"用户想要..."）
-    const questionPattern = /(用户(想要|需要|希望|要求)[^。！？\n]{0,40})/g;
-    const questionMatch = thinkingText.match(questionPattern);
-    if (questionMatch && questionMatch[0]) {
-        return questionMatch[0].slice(0, 50) + (questionMatch[0].length > 50 ? '...' : '');
-    }
-    
-    // 如果没有匹配任何模式，提取第一句话（fallback）
-    const firstSentence = thinkingText.split(/[。！？\n]/)[0].trim();
-    if (firstSentence.length > 0) {
-        return firstSentence.slice(0, 50) + (firstSentence.length > 50 ? '...' : '');
-    }
-    
-    // 最后的fallback
-    return '正在思考...';
+    // 提取前60个字符（fallback）
+    return thinkingText.slice(0, 60).trim() + '...';
+}
+
+/**
+ * 翻译英文动作词为中文
+ */
+function translateAction(action) {
+    const actionMap = {
+        'analyze': '分析', 'generate': '生成', 'create': '创建', 'build': '构建',
+        'structure': '构建', 'draft': '编写', 'explain': '解释', 'understand': '理解',
+        'identify': '识别', 'determine': '确定', 'check': '检查', 'verify': '验证',
+        'extract': '提取', 'summarize': '总结', 'organize': '整理', 'design': '设计',
+        'follow': '遵循', 'use': '使用', 'apply': '应用'
+    };
+    return actionMap[action.toLowerCase()] || action;
 }
 
 function scrollToBottom() {
