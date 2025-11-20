@@ -26,14 +26,27 @@ You will receive:
   "num_questions": 3-5,
   "memory_summary": "用户学习画像摘要",
   "content_context": ["相关知识点片段"],
-  "source_content": "（可选）基于上一轮内容生成题目，如上一轮的讲解内容"
+  "source_content": "（可选）基于上一轮内容生成题目，如上一轮的讲解内容",
+  "reference_explanation": {
+    "concept": "概念名称",
+    "intuition": "直觉理解",
+    "examples": [...],
+    "...": "完整的概念解释内容"
+  },
+  "reference_flashcards": {
+    "cards": [...],
+    "...": "抽认卡内容"
+  }
 }
 ```
 
-⚠️ If source_content is provided:
-- Generate questions based SPECIFICALLY on that content
-- Each question should test understanding of concepts/examples from source_content
-- The number of questions should match num_questions (or be based on source content structure)
+⚠️ **CRITICAL - Content Consistency (内容连贯性)**:
+- If `reference_explanation` is provided, you MUST base your quiz questions DIRECTLY on this explanation
+- Test the EXACT concepts, definitions, and examples from the reference explanation
+- If `reference_flashcards` is provided, ensure questions cover the key points mentioned in the flashcards
+- DO NOT create questions about topics NOT covered in the reference materials
+- Questions should comprehensively test understanding of the provided learning materials
+- Ensure quiz difficulty matches the complexity of the reference explanation
 
 ## Output Requirements
 You must return a valid JSON object in this exact format:

@@ -59,21 +59,18 @@ execution_plan:
         difficulty: "{input.difficulty}"
         memory_summary: "{input.memory_summary}"
       
-      # 🔥 上下文提取配置
+      # 🔥 上下文提取配置：传递完整解释内容给下游步骤
       context_extraction:
-        strategy: "key_points"
+        strategy: "full_content"  # 传递完整内容确保连贯性
         fields:
-          - "concept"          # 概念名称
-          - "examples"         # 例子列表
-          - "related_concepts" # 相关概念
-        max_tokens: 400
-        
-        # 自定义提取逻辑（可选）
-        custom_extraction:
-          # 提取核心知识点
-          key_terms: "extract_from:formal_definition,why_it_matters"
-          # 提取例子摘要
-          example_summary: "summarize:examples[].example"
+          - "concept"              # 概念名称
+          - "intuition"            # 直觉理解
+          - "formal_definition"    # 正式定义
+          - "why_it_matters"       # 重要性
+          - "examples"             # 完整例子
+          - "common_mistakes"      # 常见错误
+          - "related_concepts"     # 相关概念
+        max_tokens: 2000  # 增加token上限确保完整性
     
     # ============= Step 2: 抽认卡 (依赖讲解) =============
     - step_id: "flashcard"
@@ -87,8 +84,9 @@ execution_plan:
         topic: "{input.topic}"
         quantity: 5
         difficulty: "{input.difficulty}"
-        # 🔥 从 explain step 提取的上下文注入
-        source_content: "{context.explain.related_concepts}"
+        # 🔥 传递完整解释内容，确保卡片内容与讲解一致
+        reference_explanation: "{context.explain}"  # 完整的解释结果
+        base_concept: "{context.explain.concept}"   # 核心概念
       
       context_extraction:
         strategy: "summary"
@@ -96,20 +94,22 @@ execution_plan:
           - "card_count"
         max_tokens: 100
     
-    # ============= Step 3: 练习题 (依赖讲解) =============
+    # ============= Step 3: 练习题 (依赖讲解+抽认卡) =============
     - step_id: "quiz"
       skill_id: "quiz_skill"
       display_name: "练习题"
       order: 3
-      depends_on: ["explain"]  # 依赖 Step 1
+      depends_on: ["explain", "flashcard"]  # 依赖讲解和卡片
       
       input_mapping:
         subject: "{input.subject}"
         topic: "{input.topic}"
         quantity: 3
         difficulty: "{input.difficulty}"
-        # 🔥 从 explain step 提取例子作为题目基础
-        source_content: "{context.explain.example_summary}"
+        # 🔥 传递完整解释和卡片内容，确保题目覆盖所有知识点
+        reference_explanation: "{context.explain}"     # 完整的解释结果
+        reference_flashcards: "{context.flashcard}"    # 抽认卡内容
+        key_concepts: "{context.explain.concept}"      # 核心概念
       
       context_extraction:
         strategy: "summary"

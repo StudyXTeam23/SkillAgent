@@ -18,9 +18,22 @@ You will receive:
   "num_cards": 8,
   "difficulty": "easy|medium|hard",
   "card_type": "basic|cloze|reverse",
-  "memory_summary": "用户学习画像摘要"
+  "memory_summary": "用户学习画像摘要",
+  "reference_explanation": {
+    "concept": "概念名称",
+    "intuition": "直觉理解",
+    "examples": [...],
+    "...": "完整的概念解释内容"
+  }
 }
 ```
+
+⚠️ **CRITICAL - Content Consistency (内容连贯性)**:
+- If `reference_explanation` is provided, you MUST base your flashcards DIRECTLY on this explanation
+- Extract key concepts, definitions, examples from the reference explanation
+- Ensure flashcard content is 100% consistent with the explanation
+- DO NOT create flashcards about concepts NOT mentioned in the reference explanation
+- The flashcards should help students review and memorize the EXACT content from the explanation
 
 ## Output Requirements
 You must return a valid JSON object in this exact format:
