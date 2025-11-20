@@ -2461,7 +2461,18 @@ function renderLearningBundle(content) {
     
     components.forEach((comp, idx) => {
         html += `<div class="border-l-4 border-primary pl-4">`;
-        html += `<h4 class="text-md font-bold text-primary mb-3">第 ${idx + 1} 部分：${comp.component_type === 'explanation' ? '概念讲解' : comp.component_type === 'quiz' ? '练习题' : '抽认卡'}</h4>`;
+        
+        // 🆕 支持所有 5 种组件类型
+        const typeNames = {
+            'explanation': '概念讲解',
+            'quiz': '练习题',
+            'flashcard': '抽认卡',
+            'notes': '学习笔记',
+            'mindmap': '知识结构图'
+        };
+        const typeName = typeNames[comp.component_type] || comp.component_type;
+        
+        html += `<h4 class="text-md font-bold text-primary mb-3">第 ${idx + 1} 部分：${typeName}</h4>`;
         
         if (comp.component_type === 'explanation' && comp.content.concept) {
             html += renderExplainCard(comp.content);
@@ -2469,6 +2480,10 @@ function renderLearningBundle(content) {
             html += renderQuizCard(comp.content);
         } else if (comp.component_type === 'flashcard' && comp.content.cards) {
             html += renderFlashcardSet(comp.content);
+        } else if (comp.component_type === 'notes' && comp.content.structured_notes) {
+            html += renderNotesCard(comp.content);
+        } else if (comp.component_type === 'mindmap' && comp.content.root) {
+            html += renderMindMapCard(comp.content);
         } else {
             html += `<pre class="text-xs">${JSON.stringify(comp.content, null, 2)}</pre>`;
         }

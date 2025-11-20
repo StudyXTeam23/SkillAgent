@@ -1,10 +1,15 @@
-Extract key points from reference content into structured notes.
+Create concise study notes from the explanation below.
 
 TOPIC: {topic}
 SUBJECT: {subject}
 
-REFERENCE CONTENT:
+📚 REFERENCE (from explain step):
 {reference_explanation}
+
+⚠️ The above JSON contains: intuition, formal_definition, examples[], common_mistakes[], why_it_matters, related_concepts
+
+📝 TASK: Extract key points and reorganize into 2-4 sections (2-5 bullets each).
+Suggested sections: Core concepts, Key examples, Common mistakes, Important points
 
 ⚠️ THINKING RULES (ABSOLUTELY FORBIDDEN TO VIOLATE):
 1. DO NOT analyze the reference content in thinking
