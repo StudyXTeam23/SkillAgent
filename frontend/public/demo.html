@@ -1698,6 +1698,7 @@ function handleStreamChunk(responseId, data) {
                         formal_definition: extract('formal_definition'),
                         questions: [],
                         cards: [],
+                        examples: [],  // 🆕 添加 examples 数组
                         structured_notes: {
                             title: extract('title'),
                             sections: []
@@ -1710,6 +1711,20 @@ function handleStreamChunk(responseId, data) {
                     
                     const cardMatches = acc.matchAll(/"front"\s*:\s*"((?:[^"\\\\]|\\\\.)*)/g);
                     for (const m of cardMatches) partialData.cards.push({ front: m[1] });
+
+                    // 🆕 提取 examples（example 和 explanation 字段）
+                    const examplePattern = /"example"\s*:\s*"((?:[^"\\\\]|\\.)*)"/g;
+                    const explanationPattern = /"explanation"\s*:\s*"((?:[^"\\\\]|\\.)*)"/g;
+                    const exampleMatches = [...acc.matchAll(examplePattern)];
+                    const explanationMatches = [...acc.matchAll(explanationPattern)];
+                    
+                    // 组合 example 和对应的 explanation
+                    for (let i = 0; i < Math.max(exampleMatches.length, explanationMatches.length); i++) {
+                        partialData.examples.push({
+                            example: exampleMatches[i] ? exampleMatches[i][1] : '生成中...',
+                            explanation: explanationMatches[i] ? explanationMatches[i][1] : ''
+                        });
+                    }
 
                     const sectionMatches = acc.matchAll(/"heading"\s*:\s*"((?:[^"\\\\]|\\\\.)*)/g);
                     for (const m of sectionMatches) partialData.structured_notes.sections.push({ heading: m[1], points: [] });
@@ -1789,6 +1804,7 @@ function handleStreamChunk(responseId, data) {
                         // 尝试提取数组项 (简化版)
                         questions: [],
                         cards: [],
+                        examples: [],  // 🆕 添加 examples 数组
                         // Notes 提取
                         structured_notes: {
                             title: extract('title'),
@@ -1806,6 +1822,20 @@ function handleStreamChunk(responseId, data) {
                     const cardMatches = acc.matchAll(/"front"\s*:\s*"((?:[^"\\\\]|\\\\.)*)/g);
                     for (const m of cardMatches) {
                         partialData.cards.push({ front: m[1] });
+                    }
+
+                    // 🆕 提取 examples（example 和 explanation 字段）
+                    const examplePattern = /"example"\s*:\s*"((?:[^"\\\\]|\\.)*)"/g;
+                    const explanationPattern = /"explanation"\s*:\s*"((?:[^"\\\\]|\\.)*)"/g;
+                    const exampleMatches = [...acc.matchAll(examplePattern)];
+                    const explanationMatches = [...acc.matchAll(explanationPattern)];
+                    
+                    // 组合 example 和对应的 explanation
+                    for (let i = 0; i < Math.max(exampleMatches.length, explanationMatches.length); i++) {
+                        partialData.examples.push({
+                            example: exampleMatches[i] ? exampleMatches[i][1] : '生成中...',
+                            explanation: explanationMatches[i] ? explanationMatches[i][1] : ''
+                        });
                     }
 
                     // 提取 notes sections
@@ -2761,11 +2791,21 @@ function selectTopic(topic, intent) {
 
 // 将后端数据转换为 Mind Elixir 格式
 function convertToMindElixirFormat(mindmapData) {
+    console.log('🔄 Converting mindmap data:', mindmapData);
+    
+    if (!mindmapData || !mindmapData.root) {
+        console.error('❌ Invalid mindmap data: missing root');
+        throw new Error('思维导图数据格式错误：缺少根节点');
+    }
+    
+    const children = mindmapData.root.children || [];
+    console.log(`📊 Root has ${children.length} children`);
+    
     return {
         nodeData: {
-            id: mindmapData.root.id,
-            topic: mindmapData.root.text,
-            children: mindmapData.root.children.map(convertMindMapNode),
+            id: mindmapData.root.id || 'root',
+            topic: mindmapData.root.text || '未命名',
+            children: children.map(convertMindMapNode),
             style: {
                 fontSize: '18px',
                 color: mindmapData.root.color || '#10b981',
