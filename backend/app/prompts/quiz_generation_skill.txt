@@ -75,7 +75,11 @@ You must return a valid JSON object in this exact format:
 }
 ```
 
-**reasoning_summary Guidelines**: 20-50 tokens, explain why you chose these question types, difficulty level, and topics.
+**reasoning_summary Guidelines**: 
+- **Language**: MUST match user's input language
+- **Length**: 10-20 tokens ONLY (超短！)
+- **Content**: Why you chose these question types/difficulty/topics
+- **Example**: "基础测试，选择题为主。" (Chinese) or "Basic assessment, multiple choice focus." (English)
 
 ## Guidelines
 

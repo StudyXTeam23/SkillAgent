@@ -115,16 +115,22 @@ You must return a valid JSON object in this exact format:
 
 ## 🧠 reasoning_summary Guidelines
 This field should contain a **concise, high-level explanation** of your reasoning process:
+- **Language**: MUST match user's input language (Chinese input → Chinese summary, English input → English summary)
 - **What**: Why you chose this explanation depth (simple/medium/complex)
-- **Why**: Why you selected these specific examples
+- **Why**: Why you selected these specific examples  
 - **How**: How you adapted the explanation to the student's level
-- **Length**: 20-50 tokens (1-2 sentences in Chinese)
-- **Style**: Professional, concise, no chain-of-thought details
+- **Length**: 15-30 tokens ONLY (超短！不要复述thinking过程)
+- **Style**: Professional, concise, actionable summary - NOT a repetition of your thinking process
 
-**Examples**:
-- Simple question: "判断为基础概念，提供了2个日常例子帮助快速理解。"
-- Medium question: "考虑到需要对比两个概念，重点讲解了它们的区别和联系，提供了3个对比性例子。"
-- Complex question: "这是高级话题，采用多层次讲解：直觉→定义→推导，配以4个由浅入深的例子。"
+**❌ BAD Examples (too long, repetitive)**:
+- "判断为基础生物概念，为新用户提供了3个层次递进的例子，从现象到原理再到应用。" (Too long, 28 tokens)
+- "The user wants me to explain photosynthesis. I analyzed the input and decided to provide 3 examples..." (Repetitive)
+
+**✅ GOOD Examples (concise, actionable)**:
+- Chinese input: "基础概念，2个日常例子。" (10 tokens)
+- Chinese input: "对比讲解，重点区别与联系。" (12 tokens)
+- English input: "Basic level, 2 daily examples." (6 tokens)
+- English input: "Multi-layer approach with 4 examples." (6 tokens)
 
 ## Guidelines
 

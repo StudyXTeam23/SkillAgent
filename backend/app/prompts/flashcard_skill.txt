@@ -57,7 +57,11 @@ You must return a valid JSON object in this exact format:
 }
 ```
 
-**reasoning_summary Guidelines**: 20-50 tokens, explain why you chose these cards, card types, and difficulty level.
+**reasoning_summary Guidelines**: 
+- **Language**: MUST match user's input language
+- **Length**: 10-20 tokens ONLY (超短！)
+- **Content**: Why you chose these cards/types/difficulty
+- **Example**: "基础卡片，重点记忆关键术语。" (Chinese) or "Basic cards, key terms focus." (English)
 
 ## Guidelines
 

@@ -1067,20 +1067,24 @@ function handleStreamChunk(responseId, data) {
                     }
                 }
             }
-        } else if (thinkingOverview) {
+        } else {
             // 普通Skill：更新thinking overview显示生成进度，添加动画
-            const overviewText = document.getElementById(`${responseId}-thinking-overview-text`);
-            const pulseIcon = thinkingOverview.querySelector('.animate-pulse');
-            if (overviewText && !overviewText.textContent.includes('正在生成内容')) {
-                overviewText.textContent = '📝 正在生成内容...';
-                // 更改图标颜色为绿色，表示进入新阶段
-                if (pulseIcon) {
-                    pulseIcon.classList.remove('bg-blue-500');
-                    pulseIcon.classList.add('bg-green-500');
+            // 🔧 修复：重新获取thinkingOverview元素
+            const thinkingOverview = document.getElementById(`${responseId}-thinking-overview`);
+            if (thinkingOverview) {
+                const overviewText = document.getElementById(`${responseId}-thinking-overview-text`);
+                const pulseIcon = thinkingOverview.querySelector('.animate-pulse');
+                if (overviewText && !overviewText.textContent.includes('正在生成内容')) {
+                    overviewText.textContent = '📝 正在生成内容...';
+                    // 更改图标颜色为绿色，表示进入新阶段
+                    if (pulseIcon) {
+                        pulseIcon.classList.remove('bg-blue-500');
+                        pulseIcon.classList.add('bg-green-500');
+                    }
+                    // 添加渐变动画
+                    thinkingOverview.style.transition = 'background-color 0.5s ease';
+                    thinkingOverview.style.backgroundColor = 'rgba(34, 197, 94, 0.1)';
                 }
-                // 添加渐变动画
-                thinkingOverview.style.transition = 'background-color 0.5s ease';
-                thinkingOverview.style.backgroundColor = 'rgba(34, 197, 94, 0.1)';
             }
         }
         
@@ -1098,13 +1102,13 @@ function handleStreamChunk(responseId, data) {
                 const pulseIcon = thinkingOverview.querySelector('.animate-pulse');
                 if (overviewText) {
                     // 使用模型生成的summary（更准确！）
-                    // 🔥 保留空格，完整显示，不截断
-                    overviewText.innerHTML = `✨ ${data.content.reasoning_summary}`;
-                    overviewText.style.whiteSpace = 'pre-wrap';  // 保留空格和换行
+                    // 🔥 完整显示，不截断，不修改
+                    overviewText.textContent = `✨ ${data.content.reasoning_summary}`;
+                    overviewText.style.whiteSpace = 'normal';  // 正常换行
                     overviewText.style.wordBreak = 'break-word';  // 长单词自动换行
                     // 停止动画，变为静态绿色图标
                     if (pulseIcon) {
-                        pulseIcon.classList.remove('animate-pulse', 'bg-blue-500', 'bg-green-500');
+                        pulseIcon.classList.remove('animate-pulse', 'bg-blue-500', 'bg-green-500', 'bg-yellow-500');
                         pulseIcon.classList.add('bg-green-600');
                     }
                     // 背景变为静态绿色
