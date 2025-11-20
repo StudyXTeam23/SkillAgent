@@ -751,76 +751,112 @@ async function saveThinkingOverviewDebug(responseId, fullThinking, finalOverview
     }
 }
 
-// 🆕 从thinking文本中提取实际思考内容（支持英文thinking）
+// 🆕 从thinking文本中提取实际思考内容（智能提取关键信息）
 function extractThinkingMotivation(thinkingText) {
     if (!thinkingText) return '🤔 正在思考...';
     
-    // 策略：从最后往前找最新的有意义句子，并转换为中文描述
+    const length = thinkingText.length;
     
-    // 1. 提取最近的英文关键句子（带语义的完整句子）
-    const meaningfulPatterns = [
-        // 理解用户需求
+    // 🔥 策略1：提取高价值信息片段（特定模式优先）
+    const highValuePatterns = [
+        // 用户级别+计划
         {
-            pattern: /(?:user|they|request)[^.]{10,100}(?:asking|wants?|needs?|requesting)[^.]{0,80}\./gi,
-            transform: (match) => {
-                // 提取主题
-                const topicMatch = match.match(/["「『]([^"」』]+)["」』]/);
-                if (topicMatch) {
-                    return `正在理解需求：${topicMatch[1]}`;
-                }
-                return '正在理解用户需求';
+            pattern: /(new user|新用户)[^.]{0,100}(keep|simple|clear|accessible|基础|简单|清晰)[^.]{0,50}\./gi,
+            extract: () => '识别为新用户，准备易懂讲解'
+        },
+        // 使用比喻
+        {
+            pattern: /use.*["']([^"']{5,30})["'].*(?:analogy|metaphor|比喻)/gi,
+            extract: (match) => {
+                const analogyMatch = match.match(/["']([^"']+)["']/);
+                if (analogyMatch) return `准备用"${analogyMatch[1]}"作比喻`;
+                return '正在设计形象比喻';
             }
         },
-        // 评估复杂度
+        // 计划提供例子
         {
-            pattern: /(?:this is|it(?:'s| is))[^.]{0,50}(?:simple|complex|medium|easy|difficult)[^.]{0,80}\./gi,
-            transform: (match) => {
-                if (/simple|easy/i.test(match)) return '评估为简单问题，准备简洁讲解';
-                if (/complex|difficult/i.test(match)) return '评估为复杂问题，准备深入分析';
-                return '正在评估问题难度';
+            pattern: /(?:provide|include|need|需要).*?(\d+)[^\d.]{0,10}(?:examples?|例子)/gi,
+            extract: (match) => {
+                const numMatch = match.match(/(\d+)/);
+                if (numMatch) return `计划提供${numMatch[1]}个详细例子`;
+                return '正在准备实际例子';
             }
         },
-        // 规划策略
+        // 复杂度评估（更细致）
         {
-            pattern: /(?:should|need to|will|plan to)[^.]{10,100}(?:focus|provide|explain|structure)[^.]{0,80}\./gi,
-            transform: (match) => {
-                if (/focus.*intuition/i.test(match)) return '计划侧重直觉理解和具体示例';
-                if (/focus.*example/i.test(match)) return '计划提供多个实际例子';
-                if (/structure|organize/i.test(match)) return '正在规划回答结构';
-                const actionMatch = match.match(/(?:focus on|provide|explain|include)\s+([^,\.]+)/i);
-                if (actionMatch) {
-                    return `计划重点：${actionMatch[1].trim()}`;
-                }
-                return '正在规划回答策略';
+            pattern: /(simple|easy|medium|complex|基础|简单|中等|复杂).*(?:complexity|difficulty|概念)/gi,
+            extract: (match) => {
+                if (/simple|easy|基础|简单/i.test(match)) return '评估为基础概念';
+                if (/medium|moderate|中等/i.test(match)) return '评估为中等难度';
+                if (/complex|difficult|复杂/i.test(match)) return '评估为复杂问题';
+                return '正在评估难度';
             }
         },
-        // 构建内容
+        // Strategy部分的要点
         {
-            pattern: /(?:let me|I will|I'll|going to)[^.]{10,100}(?:create|build|structure|provide|explain)[^.]{0,80}\./gi,
-            transform: (match) => {
-                if (/example/i.test(match)) return '正在设计具体示例';
-                if (/intuition/i.test(match)) return '正在构思直观解释';
-                if (/definition/i.test(match)) return '正在准备正式定义';
-                return '正在组织内容结构';
+            pattern: /[-•]\s*([A-Z][^.\n]{10,60}(?:example|intuition|definition|analogy|例子|直觉|定义|比喻)[^.\n]{0,40})/gi,
+            extract: (match) => {
+                const cleaned = match.replace(/^[-•]\s*/, '').trim();
+                if (/example/i.test(cleaned)) return '规划具体示例';
+                if (/intuition/i.test(cleaned)) return '设计直觉理解';
+                if (/definition/i.test(cleaned)) return '准备正式定义';
+                if (cleaned.length < 50) return cleaned;
+                return '正在规划内容';
             }
         },
-        // 检查验证
+        // 即将完成
         {
-            pattern: /(?:check|verify|ensure|make sure)[^.]{10,100}\./gi,
-            transform: (match) => {
-                return `正在检查：${match.slice(0, 40).replace(/^(?:check|verify|ensure|make sure)\s*/i, '')}...`;
-            }
+            pattern: /(looks good|ready|looks complete|完成|准备好)/gi,
+            extract: () => '即将完成，准备生成'
         }
     ];
     
-    // 2. 按优先级尝试匹配
-    for (const {pattern, transform} of meaningfulPatterns) {
-        const matches = thinkingText.match(pattern);
-        if (matches && matches.length > 0) {
-            // 取最后一个匹配（最新的思考）
+    // 尝试高价值模式匹配
+    for (const {pattern, extract} of highValuePatterns) {
+        const matches = [...thinkingText.matchAll(pattern)];
+        if (matches.length > 0) {
+            // 优先使用最后一个匹配（最新的思考）
             const lastMatch = matches[matches.length - 1];
             try {
-                const result = transform(lastMatch);
+                const result = typeof extract === 'function' ? extract(lastMatch[0]) : extract();
+                if (result && result.length > 5 && result.length < 100) {
+                    return result;
+                }
+            } catch (e) {
+                console.warn('Extract error:', e);
+            }
+        }
+    }
+    
+    // 🔥 策略2：提取关键行动句（更通用）
+    const actionPatterns = [
+        {
+            pattern: /(?:I should|I will|I'll|let me|我将|我要)[^.。]{10,80}[.。]/gi,
+            transform: (match) => {
+                // 提取动词后的关键信息
+                const actionMatch = match.match(/(?:provide|explain|use|include|focus|keep|提供|解释|使用|包含|聚焦|保持)\s+([^,.。]{5,40})/i);
+                if (actionMatch && actionMatch[1].length < 35) {
+                    return `计划：${actionMatch[1].trim()}`;
+                }
+                return null;
+            }
+        },
+        {
+            pattern: /(?:user|新用户|学生).*?(?:is|are|为|是)[^.。]{5,50}(?:new|beginner|basic|初学|基础)/gi,
+            transform: () => '识别用户为初学者'
+        },
+        {
+            pattern: /(?:Structure|Format|Construct|构建|组织)[^.。]{10,60}(?:response|JSON|answer|回答|答案)/gi,
+            transform: () => '正在组织答案结构'
+        }
+    ];
+    
+    for (const {pattern, transform} of actionPatterns) {
+        const matches = [...thinkingText.matchAll(pattern)];
+        if (matches.length > 0) {
+            const lastMatch = matches[matches.length - 1];
+            try {
+                const result = transform(lastMatch[0]);
                 if (result && result.length > 5) {
                     return result;
                 }
@@ -830,108 +866,322 @@ function extractThinkingMotivation(thinkingText) {
         }
     }
     
-    // 3. 兜底：提取任何有意义的中文句子
-    const chineseSentences = thinkingText.match(/[\u4e00-\u9fa5][^。！？\n]{10,60}[。！？]/g);
+    // 🔥 策略3：提取中文关键句
+    const chineseSentences = thinkingText.match(/[\u4e00-\u9fa5][^。！？\n]{12,60}[。！？]/g);
     if (chineseSentences && chineseSentences.length > 0) {
-        let sentence = chineseSentences[chineseSentences.length - 1].trim();
-        // 移除引号和括号
-        sentence = sentence.replace(/["「『\(（][^"」』\)）]+["」』\)）]/g, '');
-        if (sentence.length > 10 && sentence.length < 80) {
-            return sentence;
+        // 优先选择包含关键词的句子
+        const keywordSentence = chineseSentences.find(s => 
+            /需要|应该|计划|准备|重点|关键|核心|提供|包含/.test(s)
+        );
+        if (keywordSentence) {
+            let cleaned = keywordSentence.trim().replace(/["「『\(（][^"」』\)）]+["」』\)）]/g, '');
+            if (cleaned.length < 80) return cleaned;
+        }
+        
+        // 否则使用最后一个有意义的中文句子
+        let lastSentence = chineseSentences[chineseSentences.length - 1].trim();
+        lastSentence = lastSentence.replace(/["「『\(（][^"」』\)）]+["」』\)）]/g, '');
+        if (lastSentence.length > 10 && lastSentence.length < 80) {
+            return lastSentence;
         }
     }
     
-    // 4. 最后兜底：根据长度给出通用状态
-    const length = thinkingText.length;
+    // 🔥 策略4：根据长度和关键词组合推断阶段
     if (length < 300) return '正在理解问题...';
-    if (length < 800) return '正在分析和规划...';
-    if (length < 1500) return '正在组织回答...';
-    if (length < 3000) return '正在完善细节...';
-    return '即将完成...';
+    
+    if (length < 1000) {
+        if (/strategy|plan|approach|策略|计划|方法/i.test(thinkingText)) return '正在规划回答策略';
+        if (/complexity|difficulty|level|复杂|难度|水平/i.test(thinkingText)) return '正在评估问题难度';
+        return '正在分析需求...';
+    }
+    
+    if (length < 2500) {
+        if (/example|analogy|intuition|例子|比喻|直觉/i.test(thinkingText)) return '正在设计讲解方式';
+        if (/structure|format|organize|结构|格式|组织/i.test(thinkingText)) return '正在组织内容结构';
+        return '正在规划详细内容...';
+    }
+    
+    if (length < 4500) {
+        if (/draft|construct|build|write|起草|构建|编写/i.test(thinkingText)) return '正在起草答案';
+        if (/check|verify|ensure|检查|验证|确保/i.test(thinkingText)) return '正在检查内容';
+        return '正在完善细节...';
+    }
+    
+    // 接近结束
+    if (/ready|complete|good|looks good|完成|准备好|不错/i.test(thinkingText.slice(-500))) {
+        return '即将完成...';
+    }
+    
+    return '正在深度思考...';
 }
 
-// 🆕 流式渲染辅助函数
+// 🆕 流式渲染辅助函数 - Quiz (与 renderQuizCard 结构对齐)
 function renderQuizStreamingUI(partialData) {
     const questions = partialData.questions || [];
-    let html = '<div class="w-full rounded-xl border border-border-light dark:border-border-dark bg-card-light dark:bg-card-dark p-6">';
-    html += '<h3 class="text-xl font-bold text-text-light-primary dark:text-text-dark-primary mb-4">📝 练习题</h3>';
+    // 外层容器不加 padding/border，因为 renderQuizCard 是每个题目一个卡片
+    let html = '<div class="flex flex-col gap-6 w-full">';
     
     questions.forEach((q, idx) => {
-        html += `<div class="mb-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">`;
-        html += `<div class="font-semibold mb-2">${idx + 1}. ${q.question_text || '生成中...'}</div>`;
+        html += `
+            <div class="flex flex-col gap-6 rounded-xl border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark p-6 shadow-sm">
+                <div class="flex flex-col gap-3">
+                    <p class="text-primary text-base font-medium">${partialData.subject || '练习题'}</p>
+                    <div class="rounded bg-slate-200 dark:bg-slate-700">
+                        <div class="h-2 rounded bg-primary" style="width: ${Math.min(100, ((idx + 1) / (questions.length || 1) * 100))}%;"></div>
+                    </div>
+                    <p class="text-slate-500 dark:text-slate-400 text-sm">Question ${idx + 1}</p>
+                </div>
+                <div class="border-t border-border-light dark:border-border-dark"></div>
+                <h1 class="text-text-light-primary dark:text-text-dark-primary tracking-tight text-xl font-bold">
+                    ${q.question_text || '题目生成中...'}
+                    ${!q.question_text ? '<span class="inline-block w-4 h-4 ml-2 rounded-full bg-primary animate-pulse"></span>' : ''}
+                </h1>
+                
+                <div class="flex flex-col gap-3" style="--radio-dot-svg: url('data:image/svg+xml,%3csvg viewBox=%270 0 16 16%27 fill=%27rgb(19,127,236)%27 xmlns=%27http://www.w3.org/2000/svg%27%3e%3ccircle cx=%278%27 cy=%278%27 r=%273%27/%3e%3c/svg%3e');">`;
+        
         if (q.options && q.options.length > 0) {
             q.options.forEach((opt, optIdx) => {
-                html += `<div class="ml-4 text-sm">${String.fromCharCode(65 + optIdx)}. ${opt}</div>`;
+                html += `
+                    <label class="flex items-center gap-4 rounded-lg border border-solid border-border-light dark:border-border-dark p-4 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                        <input class="h-5 w-5 border-2 border-border-light dark:border-border-dark bg-transparent text-transparent checked:border-primary checked:bg-[image:--radio-dot-svg] focus:outline-none focus:ring-0" name="quiz_stream_${idx}" type="radio" disabled/>
+                        <div class="flex grow flex-col"><p class="text-text-light-primary dark:text-text-dark-primary text-sm font-medium">${opt}</p></div>
+                    </label>`;
             });
+        } else {
+            // 占位符选项
+            html += `<div class="animate-pulse h-12 bg-slate-100 dark:bg-slate-800 rounded-lg"></div>`;
+            html += `<div class="animate-pulse h-12 bg-slate-100 dark:bg-slate-800 rounded-lg"></div>`;
         }
-        html += '</div>';
+        
+        html += `</div>`; // End options container
+        html += `</div>`; // End card
     });
     
     if (questions.length === 0) {
-        html += '<div class="animate-pulse text-blue-500">正在生成题目...</div>';
+        html += `
+            <div class="flex flex-col gap-6 rounded-xl border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark p-6 shadow-sm">
+                <div class="animate-pulse flex flex-col gap-4">
+                    <div class="h-4 bg-slate-200 dark:bg-slate-700 rounded w-1/4"></div>
+                    <div class="h-8 bg-slate-200 dark:bg-slate-700 rounded w-3/4"></div>
+                    <div class="space-y-3">
+                        <div class="h-12 bg-slate-200 dark:bg-slate-700 rounded"></div>
+                        <div class="h-12 bg-slate-200 dark:bg-slate-700 rounded"></div>
+                    </div>
+                </div>
+                <div class="text-center text-blue-500 animate-pulse mt-2">正在设计题目...</div>
+            </div>`;
     }
     
     html += '</div>';
     return html;
 }
 
+// 🆕 流式渲染辅助函数 - Flashcard (与 renderFlashcardSet 结构对齐)
 function renderFlashcardStreamingUI(partialData) {
     const cards = partialData.cards || [];
-    let html = '<div class="w-full rounded-xl border border-border-light dark:border-border-dark bg-card-light dark:bg-card-dark p-6">';
-    html += '<h3 class="text-xl font-bold text-text-light-primary dark:text-text-dark-primary mb-4">🎴 抽认卡</h3>';
+    let html = '<div class="flex flex-col gap-4 w-full">';
+    html += `<h3 class="text-lg font-bold text-text-light-primary dark:text-text-dark-primary">📚 抽认卡集合</h3>`;
     
     cards.forEach((card, idx) => {
-        html += `<div class="mb-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">`;
-        html += `<div class="font-semibold text-blue-600 dark:text-blue-400 mb-2">卡片 ${idx + 1}</div>`;
-        html += `<div class="mb-2"><strong>正面：</strong> ${card.front || '生成中...'}</div>`;
-        if (card.back) {
-            html += `<div><strong>背面：</strong> ${card.back}</div>`;
+        html += `
+            <div class="rounded-xl border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark p-6 shadow-sm">
+                <div class="flex items-center gap-2 mb-4">
+                    <span class="bg-primary text-white rounded-full h-6 w-6 inline-flex items-center justify-center text-sm">${idx + 1}</span>
+                    <span class="text-sm text-slate-500">${card.card_type || 'generating...'}</span>
+                </div>
+                <div class="space-y-4">
+                    <div>
+                        <p class="text-sm font-medium text-slate-500 mb-2">正面（Front）</p>
+                        <p class="text-base text-text-light-primary dark:text-text-dark-primary">
+                            ${card.front || '生成中...'}
+                            ${!card.front ? '<span class="inline-block w-2 h-2 ml-1 rounded-full bg-slate-400 animate-pulse"></span>' : ''}
+                        </p>
+                    </div>
+                    <div class="border-t border-border-light dark:border-border-dark pt-4">
+                        <p class="text-sm font-medium text-slate-500 mb-2">背面（Back）</p>
+                        <p class="text-base text-text-light-primary dark:text-text-dark-primary">${card.back || ''}</p>
+                    </div>`;
+        
+        if (card.hints && card.hints.length > 0) {
+            html += `
+                    <div class="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-lg">
+                        <p class="text-sm font-medium text-primary mb-1">💡 提示</p>
+                        <ul class="text-sm text-slate-600 dark:text-slate-300 list-disc list-inside">
+                            ${card.hints.map(h => `<li>${h}</li>`).join('')}
+                        </ul>
+                    </div>`;
         }
-        html += '</div>';
+        
+        html += `</div></div>`;
     });
     
     if (cards.length === 0) {
-        html += '<div class="animate-pulse text-blue-500">正在生成卡片...</div>';
+        html += `
+            <div class="rounded-xl border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark p-6 shadow-sm">
+                <div class="animate-pulse space-y-4">
+                    <div class="h-6 bg-slate-200 dark:bg-slate-700 rounded w-1/4"></div>
+                    <div class="space-y-2">
+                        <div class="h-4 bg-slate-200 dark:bg-slate-700 rounded w-1/6"></div>
+                        <div class="h-16 bg-slate-200 dark:bg-slate-700 rounded"></div>
+                    </div>
+                </div>
+                <div class="text-center text-blue-500 animate-pulse mt-4">正在绘制卡片...</div>
+            </div>`;
     }
     
     html += '</div>';
+    return html;
+}
+
+// 🆕 流式渲染辅助函数 - Notes (与 renderNotesCard 结构对齐)
+function renderNotesStreamingUI(partialData) {
+    const notes = partialData.structured_notes || {};
+    const sections = notes.sections || [];
+    // 使用临时ID，流式过程中不绑定事件
+    const notesId = 'streaming_notes';
+    
+    let html = `
+        <div class="w-full rounded-xl border-2 border-border-light dark:border-border-dark bg-white dark:bg-gray-800 shadow-lg overflow-hidden notebook-container">
+            <!-- 笔记头部 -->
+            <div class="bg-gradient-to-r from-blue-500 to-purple-600 p-6">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <span class="material-symbols-outlined text-white text-3xl">description</span>
+                        <div>
+                            <p class="text-sm text-blue-100">${partialData.subject || '学习笔记'}</p>
+                            <h3 class="text-2xl font-bold text-white">
+                                ${notes.title || partialData.topic || '笔记生成中...'}
+                                ${!notes.title ? '<span class="inline-block w-3 h-3 ml-2 rounded-full bg-white/50 animate-pulse"></span>' : ''}
+                            </h3>
+                        </div>
+                    </div>
+                    <!-- 流式状态下不显示编辑按钮 -->
+                    <div class="px-3 py-1 bg-white/20 rounded-full text-white text-xs flex items-center gap-1">
+                        <span class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
+                        Writing...
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 笔记内容区域 -->
+            <div class="p-8 space-y-6 notes-content bg-amber-50/30 dark:bg-gray-900/30">`;
+    
+    if (sections.length > 0) {
+        sections.forEach((section, idx) => {
+            html += `
+                <div class="notebook-section bg-white dark:bg-gray-800 rounded-lg p-6 border-l-4 border-blue-500 shadow-sm">
+                    <div class="flex items-center justify-between mb-4">
+                        <h4 class="text-xl font-bold text-gray-800 dark:text-gray-100 section-heading">
+                            ${section.heading || '章节生成中...'}
+                        </h4>
+                    </div>
+                    <ul class="space-y-3 bullet-list">`;
+            
+            if (section.bullet_points && section.bullet_points.length > 0) {
+                section.bullet_points.forEach((point) => {
+                    html += `
+                        <li class="flex gap-3 group">
+                            <span class="mt-1.5 w-2 h-2 rounded-full bg-blue-400 flex-shrink-0"></span>
+                            <span class="text-gray-700 dark:text-gray-300 leading-relaxed">${point}</span>
+                        </li>`;
+                });
+            } else {
+                html += `<li class="animate-pulse h-4 bg-slate-100 dark:bg-slate-700 rounded w-3/4 ml-5"></li>`;
+            }
+            
+            html += `   </ul>
+                </div>`;
+        });
+    } else {
+        html += `
+            <div class="notebook-section bg-white dark:bg-gray-800 rounded-lg p-6 border-l-4 border-slate-300 shadow-sm opacity-70">
+                <div class="animate-pulse space-y-4">
+                    <div class="h-6 bg-slate-200 dark:bg-slate-700 rounded w-1/3"></div>
+                    <div class="space-y-2 pl-4">
+                        <div class="h-4 bg-slate-200 dark:bg-slate-700 rounded w-3/4"></div>
+                        <div class="h-4 bg-slate-200 dark:bg-slate-700 rounded w-5/6"></div>
+                        <div class="h-4 bg-slate-200 dark:bg-slate-700 rounded w-2/3"></div>
+                    </div>
+                </div>
+            </div>`;
+    }
+    
+    html += `   </div>
+        </div>`;
+        
     return html;
 }
 
 function renderExplanationStreamingUI(partialData) {
-    let html = '<div class="w-full rounded-xl border border-border-light dark:border-border-dark bg-card-light dark:bg-card-dark p-6">';
-    html += '<h3 class="text-xl font-bold text-text-light-primary dark:text-text-dark-primary mb-4">💡 概念讲解</h3>';
+    // 🔥 复刻 renderExplainCard 的结构，确保流式到最终结果的无缝过渡
+    const concept = partialData.concept || '正在生成...';
+    const intuition = partialData.intuition || '';
+    const formalDef = partialData.formal_definition || '';
+    const examples = partialData.examples || [];
     
-    if (partialData.concept) {
-        html += `<h4 class="text-lg font-semibold mb-2">${partialData.concept}</h4>`;
+    let html = `
+        <div class="w-full rounded-xl border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark shadow-sm">
+            <div class="p-6">
+                <h1 class="text-2xl font-bold text-text-light-primary dark:text-text-dark-primary tracking-tight">
+                    ${concept}
+                    ${!partialData.concept ? '<span class="inline-block w-4 h-4 ml-2 rounded-full bg-primary animate-pulse"></span>' : ''}
+                </h1>
+            </div>
+            <div class="px-6 pb-6 text-base text-text-light-primary dark:text-text-dark-primary space-y-4">
+                <p>${intuition}</p>`;
+    
+    if (formalDef) {
+        html += `
+                <div class="my-4 p-4 bg-background-light dark:bg-background-dark rounded-lg font-mono text-sm">
+                    <span class="font-bold">${formalDef}</span>
+                </div>`;
     }
     
-    if (partialData.intuition) {
-        html += `<div class="mb-4"><strong>直观理解：</strong><br>${partialData.intuition}</div>`;
-    }
-    
-    if (partialData.formal_definition) {
-        html += `<div class="mb-4"><strong>正式定义：</strong><br>${partialData.formal_definition}</div>`;
-    }
-    
-    if (partialData.examples && partialData.examples.length > 0) {
-        html += '<div class="mb-4"><strong>例子：</strong>';
-        partialData.examples.forEach((ex, idx) => {
-            html += `<div class="ml-4 mb-2">${idx + 1}. ${ex.title || ''}${ex.description ? ': ' + ex.description : ''}</div>`;
+    if (examples && examples.length > 0) {
+        html += `
+            </div>
+            <hr class="border-border-light dark:border-border-dark"/>
+            <div class="p-6">
+                <h2 class="text-xl font-semibold text-text-light-primary dark:text-text-dark-primary mb-5">例子</h2>
+                <div class="space-y-6">`;
+        
+        examples.forEach((ex, idx) => {
+            html += `
+                    <div class="flex flex-col gap-3">
+                        <h3 class="font-semibold text-text-light-primary dark:text-text-dark-primary">
+                            <span class="bg-primary text-white rounded-full h-6 w-6 inline-flex items-center justify-center text-sm mr-2">${idx + 1}</span>
+                            ${ex.example || ex.title || '生成中...'}
+                        </h3>
+                        <div class="pl-8 text-slate-600 dark:text-slate-300 border-l-2 border-primary/50 ml-3">
+                            <p>${ex.explanation || ''}</p>
+                        </div>
+                    </div>`;
         });
-        html += '</div>';
+        
+        html += `</div>`;
+    } else {
+        // 如果没有例子，闭合上面的 div
+        html += `</div>`;
     }
     
-    if (!partialData.concept && !partialData.intuition) {
-        html += '<div class="animate-pulse text-blue-500">正在生成讲解...</div>';
+    // 如果内容很少，显示加载动画
+    if (!partialData.intuition && !partialData.formal_definition) {
+        html += `
+            <div class="px-6 pb-6">
+                <div class="flex items-center gap-2 text-blue-500 animate-pulse">
+                    <span class="material-symbols-outlined text-xl">edit_note</span>
+                    <span>正在撰写直观解释...</span>
+                </div>
+            </div>`;
     }
     
-    html += '</div>';
+    html += `</div>`;
     return html;
 }
 
 function handleStreamChunk(responseId, data) {
-    // 🐛 只记录非流式事件，避免log刷屏
+    // ✅ 流式输出已验证正常工作！过滤thinking/content日志以避免console刷屏
+    // 如需调试，可临时启用: console.log('[Stream]', data.type, ...)
     if (!['thinking', 'content'].includes(data.type)) {
         console.log('[Stream]', data.type, data);
     }
@@ -1249,8 +1499,8 @@ function handleStreamChunk(responseId, data) {
                             pulseIcon.classList.add('bg-yellow-500');
                         }
                     } else if (!isThinkingEnding) {
-                        // 动态提取思考动机
-                        const shouldUpdate = fullText.length % 200 < 10 || /[.。!！?？]/.test(data.text);
+                        // 🔥 动态提取思考动机（优化：更频繁地检查，捕捉更多思考阶段）
+                        const shouldUpdate = fullText.length % 80 < 5 || /[.。!！?？]/.test(data.text);
                         if (shouldUpdate) {
                             const motivation = extractThinkingMotivation(fullText);
                             if (motivation && summaryText.textContent !== motivation) {
@@ -1329,8 +1579,8 @@ function handleStreamChunk(responseId, data) {
                         }
                         thinkingOverview.style.backgroundColor = 'rgba(251, 191, 36, 0.1)';
                     } else if (!isThinkingEnding) {
-                        // 🔥 从thinking内容中提取思考动机和计划
-                        const shouldUpdate = fullText.length % 200 < 10 || /[.。!！?？]/.test(data.text);
+                        // 🔥 从thinking内容中提取思考动机和计划（优化：更频繁地检查）
+                        const shouldUpdate = fullText.length % 80 < 5 || /[.。!！?？]/.test(data.text);
                         if (shouldUpdate) {
                             const motivation = extractThinkingMotivation(fullText);
                             if (motivation && overviewText.textContent !== motivation) {
@@ -1470,11 +1720,57 @@ function handleStreamChunk(responseId, data) {
                     } else if (partialData.concept) {
                         // Explanation Skill
                         finalEl.innerHTML = renderExplanationStreamingUI(partialData);
+                    } else if (partialData.structured_notes) {
+                        // Notes Skill
+                        finalEl.innerHTML = renderNotesStreamingUI(partialData);
                     }
                 } catch (e) {
-                    // JSON不完整，显示加载状态
-                    if (!finalEl.innerHTML) {
-                        finalEl.innerHTML = '<div class="text-center py-4"><div class="animate-pulse text-blue-500">📝 正在生成内容...</div></div>';
+                    // 🔥 JSON不完整，使用正则智能提取部分内容（支持未闭合字符串）
+                    const acc = data.accumulated || '';
+                    
+                    // 辅助提取函数：提取key对应的值，支持未闭合的引号
+                    const extract = (key) => {
+                        // 匹配 "key": "value... (可能未闭合)
+                        // [^"\\]* 匹配非引号和非转义字符
+                        // (?:\\.[^"\\]*)* 匹配转义字符后的内容
+                        const regex = new RegExp(`"${key}"\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)`);
+                        const match = acc.match(regex);
+                        return match ? match[1] : null;
+                    };
+
+                    const partialData = {
+                        concept: extract('concept'),
+                        intuition: extract('intuition'),
+                        formal_definition: extract('formal_definition'),
+                        // 尝试提取数组项 (简化版)
+                        questions: [],
+                        cards: []
+                    };
+                    
+                    // 提取所有 quiz questions
+                    const questionMatches = acc.matchAll(/"question_text"\s*:\s*"((?:[^"\\\\]|\\\\.)*)/g);
+                    for (const m of questionMatches) {
+                        partialData.questions.push({ question_text: m[1] });
+                    }
+                    
+                    // 提取所有 flashcards
+                    const cardMatches = acc.matchAll(/"front"\s*:\s*"((?:[^"\\\\]|\\\\.)*)/g);
+                    for (const m of cardMatches) {
+                        partialData.cards.push({ front: m[1] });
+                    }
+
+                    // 如果提取到了任何内容，就尝试渲染
+                    if (partialData.questions.length > 0) {
+                        finalEl.innerHTML = renderQuizStreamingUI(partialData);
+                    } else if (partialData.cards.length > 0) {
+                        finalEl.innerHTML = renderFlashcardStreamingUI(partialData);
+                    } else if (partialData.concept || partialData.intuition) {
+                        finalEl.innerHTML = renderExplanationStreamingUI(partialData);
+                    } else {
+                        // 真的什么都没提取到，显示loading
+                        if (!finalEl.innerHTML) {
+                            finalEl.innerHTML = '<div class="text-center py-4"><div class="animate-pulse text-blue-500">📝 正在生成内容... (' + acc.length + ' 字符)</div></div>';
+                        }
                     }
                 }
             }

@@ -22,7 +22,7 @@ input_schema:
     num_cards:
       type: integer
       description: "抽认卡数量（默认 5-10 张）"
-      default: 8
+      default: 5
     difficulty:
       type: string
       enum: ["easy", "medium", "hard"]

@@ -23,7 +23,8 @@ If user clearly says what they want, return that intent:
 - "explain" / "讲解" / "什么是" → `intent="explain"`
 - "mindmap" / "思维导图" → `intent="mindmap"`
 - "notes" / "笔记" / "总结" → `intent="notes"`
-- "学习资料" / "学习包" / "learning bundle" → `intent="learning_bundle"`
+- "学习资料" / "学习包" / "learning bundle" / "套餐" → `intent="learning_bundle"`
+  - *Extract sub-quantities if mentioned*: "3张卡片2道题" → `parameters={"flashcard_quantity": 3, "quiz_quantity": 2}`
 - "功能" / "help" / "帮助" → `intent="help"`
 
 ### 2. AMBIGUOUS INTENTS (Need Preference)
@@ -97,6 +98,12 @@ You will receive these minimal flags (NOT full context):
 ```
 Input: "给我5道二战历史的题"
 Output: {{"intent": "quiz", "topic": "历史-二战", "confidence": 0.95, "parameters": {{"quantity": 5, "context_type": "clear"}}}}
+```
+
+### Complex Learning Bundle (Mixed Parameters)
+```
+Input: "光合作用3张闪卡和2道quiz题"
+Output: {{"intent": "learning_bundle", "topic": "光合作用", "confidence": 0.95, "parameters": {{"flashcard_quantity": 3, "quiz_quantity": 2, "context_type": "clear"}}}}
 ```
 
 ### Ambiguous (Needs Preference)

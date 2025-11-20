@@ -329,14 +329,19 @@ class IntentRouter:
         prompt = self._format_prompt(message, memory_summary, last_artifact_summary)
         
         try:
-            # 调用 Gemini API
-            response_text = await self.gemini_client.generate(
+            # 调用 LLM API（支持 Gemini 或 Kimi）
+            response = await self.gemini_client.generate(
                 prompt=prompt,
-                model=settings.GEMINI_MODEL,
+                model=settings.KIMI_MODEL if settings.KIMI_API_KEY else settings.GEMINI_MODEL,
                 response_format="json",
                 max_tokens=200,  # Intent recognition needs short output
-                temperature=0.3   # Lower temperature for more consistent classification
+                temperature=0.3,   # Lower temperature for more consistent classification
+                thinking_budget=0,  # 🔥 Intent routing 不需要 thinking（节省 tokens）
+                return_thinking=False
             )
+            
+            # 🔥 兼容新版 generate 返回格式：Dict["content", "thinking", "usage"]
+            response_text = response.get("content", response) if isinstance(response, dict) else response
             
             # 解析 JSON 响应
             response_data = json.loads(response_text)

@@ -210,6 +210,123 @@ cat backend/memory_storage/intent_router_output.json | jq .stats
 
 ---
 
+## 7. 流式输出测试（Phase 4.5）
+
+### 后端验证
+
+**检查 LLM Client 选择**:
+```bash
+# 启动后端，观察日志
+cd backend
+python3 -m uvicorn app.main:app --reload
+
+# 期望看到：
+# ✅ Kimi client initialized via Novita AI
+# 📍 Base URL: https://api.novita.ai/openai
+# 🤖 Model: moonshotai/kimi-k2-thinking
+# ✅ Using Kimi Client for LLM operations
+```
+
+### 前端流式验证
+
+**测试步骤**:
+```
+1. 打开浏览器开发者工具（F12）
+2. 切换到 Console 标签
+3. 输入: "什么是光合作用"
+4. 观察日志输出
+```
+
+**期望结果**:
+```javascript
+// ✅ 应该看到多个流式 chunks
+[Stream] status {type: 'status', message: '正在分析您的请求...'}
+[Stream] status {type: 'status', message: '开始explain_request...'}
+[Stream] thinking {type: 'thinking', text: 'The user wants...', ...}
+[Stream] thinking {type: 'thinking', text: 'Let me analyze...', ...}
+[Stream] content {type: 'content', text: '{\n  "concept":', ...}
+[Stream] content {type: 'content', text: ' "光合作用"', ...}
+[Stream] done {type: 'done', ...}
+
+// ✅ 应该看到多个 overview 变化
+[DEBUG] Overview #1: 正在理解问题...
+[DEBUG] Overview #2: 评估为基础概念，准备清晰讲解
+[DEBUG] Overview #3: 计划侧重直觉理解
+[DEBUG] Overview #4: 正在设计具体示例
+[DEBUG] Overview #5: 正在组织内容结构
+[DEBUG] Overview #6: 正在完善细节...
+[DEBUG] Overview #7: ⏳ 准备生成内容...
+```
+
+**失败诊断**:
+```javascript
+// ❌ 如果只看到：
+[Stream] status {...}
+[Stream] done {...}
+
+// 可能的问题：
+// 1. 后端未使用 Kimi Client（检查启动日志）
+// 2. 前端缓存（Ctrl+Shift+R 强制刷新）
+// 3. API 配置错误（检查 config.py）
+```
+
+### Network 面板验证
+
+```
+1. 打开开发者工具 → Network 标签
+2. 输入测试消息
+3. 找到 /api/agent/chat-stream 请求
+4. 查看响应（应该是持续的数据流）
+```
+
+**期望**:
+- ✅ Type: `text/event-stream`
+- ✅ 持续接收数据（不是一次性返回）
+- ✅ 每个数据块以 `data: ` 开头
+
+### Thinking Overview 质量测试
+
+```bash
+# 查看调试数据
+cat backend/memory_storage/thinking_overview_debug.json | jq '.samples[-1]'
+
+# 检查字段：
+# - all_overviews: 应该有 5+ 个不同的阶段
+# - overview_changes_count: 应该 >= 5
+# - full_thinking: 完整思考过程（2000+ 字符）
+```
+
+---
+
+## 8. 性能基准测试
+
+### 流式延迟测试
+
+```bash
+# 测试首字节时间（TTFB）
+curl -w "@curl-format.txt" -o /dev/null -s \
+  -X POST http://localhost:8000/api/agent/chat-stream \
+  -H "Content-Type: application/json" \
+  -d '{"user_id":"test","session_id":"test","message":"什么是光合作用"}'
+
+# 期望：
+# time_connect: < 0.5s
+# time_starttransfer: < 1.0s  ← TTFB
+```
+
+### Token 消耗验证
+
+```bash
+# Phase 4.5 应该保持 Phase 4 的 token 效率
+cat backend/memory_storage/intent_router_output.json | jq '.stats'
+
+# 期望：
+# - rule_success_rate: >= 70%
+# - avg_tokens_per_request: <= 500
+```
+
+---
+
 ## 🎯 完整测试清单
 
 ```
@@ -228,15 +345,81 @@ Phase 3 架构（10分钟）
   ✅ Clarification 测试
   ✅ Topic 提取测试
 
+流式输出（10分钟）- Phase 4.5 🆕
+  ✅ 后端 LLM Client 验证
+  ✅ 前端 Console 流式日志检查
+  ✅ Network 面板数据流验证
+  ✅ Thinking Overview 质量检查（5+ 阶段）
+  ✅ 性能基准测试
+
 调试验证（5分钟）
   ✅ 查看 Intent Router 输出
   ✅ 验证规则命中率 >= 70%
 ```
 
-**总时间**: ~35分钟
+**总时间**: ~45分钟
+
+---
+
+## 🐛 故障排除
+
+### 流式输出相关问题
+
+**问题：前端没有收到流式 chunks**
+
+解决步骤：
+```bash
+# 1. 检查后端使用的 Client
+cd backend
+python3 -m uvicorn app.main:app --reload | grep "Using"
+# 应该看到：✅ Using Kimi Client
+
+# 2. 检查 API 配置
+cat backend/app/config.py | grep "KIMI"
+# 确认 KIMI_API_KEY 和 KIMI_MODEL 已设置
+
+# 3. 清除前端缓存
+# 浏览器：Ctrl+Shift+R（强制刷新）
+
+# 4. 检查 Network 请求
+# 开发者工具 → Network → 查看 /chat-stream 请求
+# 确认 Content-Type: text/event-stream
+```
+
+**问题：Overview 只有 3 个阶段**
+
+解决步骤：
+```bash
+# 1. 确认前端代码已更新
+grep "fullText.length % 80" frontend/public/demo.html
+# 应该看到：const shouldUpdate = fullText.length % 80 < 5
+
+# 2. 清除浏览器缓存
+# Ctrl+Shift+R 强制刷新
+
+# 3. 查看 thinking 长度
+cat backend/memory_storage/thinking_overview_debug.json | jq '.samples[-1].thinking_length'
+# 应该 > 2000 字符
+```
+
+**问题：后端报错 "Kimi client not found"**
+
+解决步骤：
+```bash
+# 检查 kimi.py 是否存在
+ls backend/app/services/kimi.py
+
+# 检查导入
+grep "from.*kimi import" backend/app/core/skill_orchestrator.py
+
+# 重启后端
+cd backend
+python3 -m uvicorn app.main:app --reload
+```
 
 ---
 
 更多详细信息请参考:
-- [FEATURES.md](FEATURES.md) - 功能详解
+- [FEATURES.md](FEATURES.md) - 功能详解（包含 Phase 4.5 修复说明）
 - [README.md](README.md) - 快速开始
+- [STREAMING_FIX_GUIDE.md](STREAMING_FIX_GUIDE.md) - 流式修复完整指南（如需创建）

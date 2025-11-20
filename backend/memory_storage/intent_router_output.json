@@ -1,11 +1,57 @@
 {
   "description": "Intent Router 实时输出记录 (Phase 3 架构)",
-  "latest": {},
-  "history": [],
+  "latest": {
+    "timestamp": "2025-11-20T16:22:45.103409",
+    "user_message": "帮我生成3张闪卡，3道题",
+    "method": "rule_engine",
+    "tokens_used": 0,
+    "results": [
+      {
+        "intent": "flashcard_request",
+        "topic": null,
+        "confidence": 0.95,
+        "parameters": {
+          "quantity": 3
+        }
+      }
+    ]
+  },
+  "history": [
+    {
+      "timestamp": "2025-11-20T16:18:35.617286",
+      "user_message": "什么是光合作用",
+      "method": "rule_engine",
+      "tokens_used": 0,
+      "results": [
+        {
+          "intent": "explain_request",
+          "topic": "光合作用",
+          "confidence": 0.95,
+          "parameters": {}
+        }
+      ]
+    },
+    {
+      "timestamp": "2025-11-20T16:22:45.103409",
+      "user_message": "帮我生成3张闪卡，3道题",
+      "method": "rule_engine",
+      "tokens_used": 0,
+      "results": [
+        {
+          "intent": "flashcard_request",
+          "topic": null,
+          "confidence": 0.95,
+          "parameters": {
+            "quantity": 3
+          }
+        }
+      ]
+    }
+  ],
   "stats": {
-    "total_requests": 0,
-    "rule_based_success": 0,
+    "total_requests": 2,
+    "rule_based_success": 2,
     "llm_fallback": 0,
-    "rule_success_rate": "0.0%"
+    "rule_success_rate": "100.0%"
   }
 }

@@ -19,6 +19,8 @@ from ..models.intent import IntentResult, MemorySummary
 from ..models.memory import UserLearningProfile, SessionContext
 from ..models.skill import SkillDefinition
 from ..services.gemini import GeminiClient
+from ..services.kimi import KimiClient  # 🆕 导入 KimiClient
+from ..config import settings  # 🆕 导入配置
 from .skill_registry import SkillRegistry, get_skill_registry
 from .memory_manager import MemoryManager
 
@@ -39,11 +41,22 @@ class SkillOrchestrator:
         
         Args:
             skill_registry: Skill Registry 实例
-            gemini_client: Gemini Client 实例
+            gemini_client: Gemini Client 实例（兼容参数）
             memory_manager: Memory Manager 实例
         """
         self.skill_registry = skill_registry or get_skill_registry()
-        self.gemini_client = gemini_client or GeminiClient()
+        
+        # 🔥 根据配置选择 LLM Client
+        if settings.KIMI_API_KEY and settings.KIMI_MODEL:
+            self.llm_client = KimiClient()
+            logger.info("✅ Using Kimi Client for LLM operations")
+        else:
+            self.llm_client = gemini_client or GeminiClient()
+            logger.info("✅ Using Gemini Client for LLM operations")
+        
+        # 保持向后兼容
+        self.gemini_client = self.llm_client
+        
         self.memory_manager = memory_manager or MemoryManager()
         
         # Prompt 文件目录
@@ -157,9 +170,10 @@ class SkillOrchestrator:
             thinking_accumulated = []
             content_accumulated = []
             
-            async for chunk in self.gemini_client.generate_stream(
+            # 🔥 使用 llm_client（支持 Kimi 或 Gemini）
+            async for chunk in self.llm_client.generate_stream(
                 prompt=prompt,
-                model=skill.models.get("primary", "gemini-2.5-flash-lite"),
+                model=skill.models.get("primary", self.llm_client.model),  # 使用 llm_client 的默认模型
                 thinking_budget=skill.thinking_budget or 256,  # ⚡ 快速思考模式
                 buffer_size=1,  # ⚡⚡⚡⚡ 极限优化：每个字符立即发送
                 temperature=getattr(skill, 'temperature', 1.0)  # ⚡⚡⚡ 最大化速度
@@ -582,25 +596,6 @@ class SkillOrchestrator:
         # Step 3: 构建输入参数
         params = self._build_input_params(skill, intent_result, context, additional_params)
         
-        # Step 3.5: 特别处理 - 提取 quantity 参数（如果用户没指定，使用默认值）
-        if hasattr(intent_result, 'parameters') and intent_result.parameters:
-            quantity = intent_result.parameters.get('quantity', None)
-            
-            # 如果没有指定数量，使用默认值
-            if quantity is None:
-                if skill.id == 'quiz_skill':
-                    quantity = 5  # Quiz 默认 5 道题
-                elif skill.id == 'flashcard_skill':
-                    quantity = 5  # Flashcard 默认 5 张卡
-            
-            # 根据不同的 skill 设置不同的参数名
-            if skill.id == 'quiz_skill':
-                params['num_questions'] = quantity
-            elif skill.id == 'flashcard_skill':
-                params['num_cards'] = quantity
-            
-            logger.info(f"📊 Extracted quantity: {quantity} for {skill.id}")
-        
         # Step 4: 执行技能
         try:
             response = await self._execute_skill(skill, params, context)
@@ -852,6 +847,26 @@ class SkillOrchestrator:
                     else:
                         params["source_content"] = str(source_content)
                     logger.info(f"📎 Prepared source_content for {skill.id}")
+        
+        # 🆕 V1.6: 提取 quantity 参数（如果用户没指定，使用默认值）
+        if hasattr(intent_result, 'parameters') and intent_result.parameters:
+            quantity = intent_result.parameters.get('quantity', None)
+            
+            # 如果没有指定数量，使用默认值
+            if quantity is None:
+                if skill.id == 'quiz_skill':
+                    quantity = 5  # Quiz 默认 5 道题
+                elif skill.id == 'flashcard_skill':
+                    quantity = 5  # Flashcard 默认 5 张卡
+            
+            # 根据不同的 skill 设置不同的参数名
+            if skill.id == 'quiz_skill':
+                params['num_questions'] = quantity
+            elif skill.id == 'flashcard_skill':
+                params['num_cards'] = quantity
+            
+            if quantity is not None:
+                logger.info(f"📊 Extracted quantity: {quantity} for {skill.id}")
         
         # 添加用户提供的额外参数
         if additional_params:

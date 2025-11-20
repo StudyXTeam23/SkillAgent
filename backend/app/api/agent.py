@@ -113,13 +113,15 @@ class AgentChatResponse(BaseModel):
 
 
 def get_skill_orchestrator(
-    memory_manager: MemoryManager = Depends(get_memory_manager),
-    gemini_client: GeminiClient = Depends(get_gemini_client)
+    memory_manager: MemoryManager = Depends(get_memory_manager)
 ) -> SkillOrchestrator:
-    """获取 Skill Orchestrator 实例"""
+    """
+    获取 Skill Orchestrator 实例
+    
+    🔥 Orchestrator 会根据配置自动选择使用 Kimi 或 Gemini Client
+    """
     return SkillOrchestrator(
-        memory_manager=memory_manager,
-        gemini_client=gemini_client
+        memory_manager=memory_manager
     )
 
 
@@ -755,8 +757,7 @@ async def agent_health() -> Dict[str, Any]:
 async def agent_chat_stream(
     request: AgentChatRequest,  # 🔧 修复：使用正确的请求模型
     orchestrator: SkillOrchestrator = Depends(get_skill_orchestrator),
-    memory_manager: MemoryManager = Depends(get_memory_manager),
-    gemini_client: GeminiClient = Depends(get_gemini_client)
+    memory_manager: MemoryManager = Depends(get_memory_manager)
 ):
     """
     🆕 流式聊天端点 (Server-Sent Events)
@@ -789,7 +790,8 @@ async def agent_chat_stream(
             
             # Intent routing
             from app.core.intent_router import IntentRouter
-            intent_router = IntentRouter(gemini_client=gemini_client)
+            # 🔥 使用 orchestrator 的 llm_client（已根据配置选择 Kimi 或 Gemini）
+            intent_router = IntentRouter(gemini_client=orchestrator.llm_client)
             
             intent_results = await intent_router.parse(
                 message=request.message,
