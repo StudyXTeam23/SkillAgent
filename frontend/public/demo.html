@@ -1045,26 +1045,47 @@ function handleStreamChunk(responseId, data) {
         scrollToBottom();
     } 
     else if (data.type === 'content') {
-        // 🆕 显示内容生成进度（进度条+字符计数）
-        // 检测是否是Plan Skill
+        // 🆕 显示内容生成进度 + 实时预览
         const statusText = statusEl?.querySelector('span')?.textContent || '';
         const isPlanSkill = statusText.includes('Step') && statusText.includes('/');
         const stepMatch = statusText.match(/Step (\d+)\//);
         const currentStep = stepMatch ? parseInt(stepMatch[1]) : null;
         
+        // 统计累计字符数
+        const contentLength = data.accumulated ? data.accumulated.length : 0;
+        
+        // 🔥 新增：尝试解析部分JSON并显示预览
+        let previewText = '';
+        if (data.accumulated) {
+            try {
+                // 尝试提取已完成的字段
+                const jsonMatch = data.accumulated.match(/"(concept|intuition|reasoning_summary)":\s*"([^"]+)"/);
+                if (jsonMatch) {
+                    const fieldName = jsonMatch[1];
+                    const fieldValue = jsonMatch[2];
+                    if (fieldName === 'concept') {
+                        previewText = `概念: ${fieldValue}...`;
+                    } else if (fieldName === 'intuition') {
+                        previewText = `直觉: ${fieldValue.slice(0, 50)}...`;
+                    } else if (fieldName === 'reasoning_summary') {
+                        previewText = fieldValue;
+                    }
+                }
+            } catch (e) {
+                // 解析失败，忽略
+            }
+        }
+        
         if (isPlanSkill && currentStep) {
-            // Plan Skill：更新thinking summary显示生成进度
+            // Plan Skill：更新thinking summary
             const thinkingSummary = document.getElementById(`plan-step-${currentStep}-thinking-summary`);
             if (thinkingSummary) {
                 const summaryText = thinkingSummary.querySelector('.thinking-summary-text');
                 const pulseIcon = thinkingSummary.querySelector('.animate-pulse');
                 
-                // 统计累计字符数（从accumulated字段）
-                const contentLength = data.accumulated ? data.accumulated.length : 0;
-                
                 if (summaryText) {
-                    summaryText.textContent = `📝 正在生成内容... (${contentLength} chars)`;
-                    // 更改图标颜色为绿色
+                    const displayText = previewText || `📝 正在生成内容... (${contentLength} chars)`;
+                    summaryText.textContent = displayText;
                     if (pulseIcon) {
                         pulseIcon.classList.remove('bg-blue-500', 'bg-yellow-500');
                         pulseIcon.classList.add('bg-green-500');
@@ -1072,23 +1093,19 @@ function handleStreamChunk(responseId, data) {
                 }
             }
         } else {
-            // 普通Skill：更新thinking overview显示生成进度
+            // 普通Skill：更新thinking overview
             const thinkingOverview = document.getElementById(`${responseId}-thinking-overview`);
             if (thinkingOverview) {
                 const overviewText = document.getElementById(`${responseId}-thinking-overview-text`);
                 const pulseIcon = thinkingOverview.querySelector('.animate-pulse');
                 
-                // 统计累计字符数
-                const contentLength = data.accumulated ? data.accumulated.length : 0;
-                
                 if (overviewText) {
-                    overviewText.textContent = `📝 正在生成内容... (${contentLength} chars)`;
-                    // 更改图标颜色为绿色
+                    const displayText = previewText || `📝 正在生成内容... (${contentLength} chars)`;
+                    overviewText.textContent = displayText;
                     if (pulseIcon) {
                         pulseIcon.classList.remove('bg-blue-500', 'bg-yellow-500');
                         pulseIcon.classList.add('bg-green-500');
                     }
-                    // 添加渐变动画
                     if (!thinkingOverview.style.backgroundColor) {
                         thinkingOverview.style.transition = 'background-color 0.5s ease';
                         thinkingOverview.style.backgroundColor = 'rgba(34, 197, 94, 0.1)';
