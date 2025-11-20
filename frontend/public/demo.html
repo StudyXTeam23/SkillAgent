@@ -674,6 +674,46 @@ function createStreamingResponseContainer(responseId) {
     scrollToBottom();
 }
 
+// 🐛 保存Thinking Overview调试数据到后端
+async function saveThinkingOverviewDebug(responseId, fullThinking, extractedOverview) {
+    if (!fullThinking || !extractedOverview) {
+        console.warn('[DEBUG] Missing thinking or overview, skipping save');
+        return;
+    }
+    
+    try {
+        // 获取当前的用户查询（从最后一条消息获取）
+        const lastUserMessage = document.querySelector('.user-message:last-of-type .prose');
+        const userQuery = lastUserMessage ? lastUserMessage.textContent.trim() : '';
+        
+        const debugData = {
+            full_thinking: fullThinking,
+            extracted_overview: extractedOverview,
+            timestamp: new Date().toISOString(),
+            user_query: userQuery,
+            skill_id: responseId
+        };
+        
+        const response = await fetch(`${API_BASE}/api/agent/debug/thinking-overview`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(debugData)
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const result = await response.json();
+        console.log(`✅ [DEBUG] Saved thinking overview debug data: Sample #${result.sample_id} (Total: ${result.total_samples})`);
+        
+    } catch (error) {
+        console.error('[DEBUG] Failed to save thinking overview debug:', error);
+    }
+}
+
 // 🆕 从thinking文本中提取思考动机和计划
 function extractThinkingMotivation(thinkingText) {
     if (!thinkingText) return '🤔 正在思考...';
@@ -1327,6 +1367,9 @@ function handleStreamChunk(responseId, data) {
                         pulseIcon.classList.add('bg-green-600');
                     }
                     thinkingOverview.style.backgroundColor = 'rgba(34, 197, 94, 0.15)';
+                    
+                    // 🐛 保存Debug数据到后端
+                    saveThinkingOverviewDebug(responseId, data.thinking, data.content.reasoning_summary);
                 }
             }
         } else {

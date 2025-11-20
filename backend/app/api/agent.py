@@ -874,3 +874,87 @@ async def agent_info(
             }
         )
 
+
+# ============= Debug API =============
+
+class ThinkingOverviewDebugRequest(BaseModel):
+    """Thinking Overview调试数据请求"""
+    full_thinking: str = Field(..., description="完整的thinking文本")
+    extracted_overview: str = Field(..., description="提取的overview")
+    timestamp: str = Field(..., description="时间戳")
+    user_query: str = Field(default="", description="用户查询")
+    skill_id: str = Field(default="", description="技能ID")
+
+
+@router.post("/debug/thinking-overview")
+async def save_thinking_overview_debug(request: ThinkingOverviewDebugRequest):
+    """
+    保存Thinking Overview提取结果，用于调试和优化
+    
+    Args:
+        request: 包含完整thinking和提取的overview
+    
+    Returns:
+        保存结果
+    """
+    import os
+    from pathlib import Path
+    
+    try:
+        # 确定文件路径
+        debug_file = Path(__file__).parent.parent.parent / "memory_storage" / "thinking_overview_debug.json"
+        
+        # 读取现有数据
+        if debug_file.exists():
+            with open(debug_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+        else:
+            data = {
+                "metadata": {
+                    "description": "Thinking Overview提取调试数据集",
+                    "purpose": "收集完整thinking文本和提取的overview，用于优化extractThinkingMotivation函数",
+                    "created_at": datetime.now().isoformat(),
+                    "total_samples": 0
+                },
+                "samples": []
+            }
+        
+        # 添加新样本
+        sample = {
+            "id": len(data["samples"]) + 1,
+            "timestamp": request.timestamp,
+            "user_query": request.user_query,
+            "skill_id": request.skill_id,
+            "full_thinking": request.full_thinking,
+            "extracted_overview": request.extracted_overview,
+            "thinking_length": len(request.full_thinking),
+            "overview_length": len(request.extracted_overview)
+        }
+        
+        data["samples"].append(sample)
+        data["metadata"]["total_samples"] = len(data["samples"])
+        data["metadata"]["last_updated"] = datetime.now().isoformat()
+        
+        # 保存到文件
+        with open(debug_file, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        
+        logger.info(f"✅ Saved thinking overview debug sample #{sample['id']}")
+        
+        return {
+            "success": True,
+            "sample_id": sample["id"],
+            "total_samples": data["metadata"]["total_samples"],
+            "message": f"Debug数据已保存 (#{sample['id']})"
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Failed to save thinking overview debug: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "code": "DebugSaveError",
+                "message": str(e)
+            }
+        )
+
