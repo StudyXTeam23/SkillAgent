@@ -1058,27 +1058,14 @@ function handleStreamChunk(responseId, data) {
                 statusLabel.classList.add('bg-green-100', 'dark:bg-green-900', 'text-green-700', 'dark:text-green-300');
             }
             
-            // 🔥 更新thinking summary为reasoning_summary（如果有）
+            // 🔥 步骤完成后隐藏thinking summary（用户只想在thinking过程中看到）
             const thinkingSummary = document.getElementById(`plan-step-${data.step_order}-thinking-summary`);
             if (thinkingSummary) {
-                const summaryText = thinkingSummary.querySelector('.thinking-summary-text');
-                if (summaryText && data.result && data.result.reasoning_summary) {
-                    // ✅ 使用模型生成的reasoning_summary
-                    summaryText.textContent = `✨ ${data.result.reasoning_summary}`;
-                    summaryText.classList.remove('italic');
-                    console.log(`[DEBUG] Plan Step ${data.step_order} summary:`, data.result.reasoning_summary);
-                } else if (summaryText) {
-                    // Fallback：保留"正在生成内容"或显示完成状态
-                    if (!summaryText.textContent.includes('正在生成')) {
-                        summaryText.textContent = `✅ ${data.step_name}完成`;
-                    }
-                }
-                // 移除动画
-                const pulseIcon = thinkingSummary.querySelector('.animate-pulse');
-                if (pulseIcon) {
-                    pulseIcon.classList.remove('animate-pulse');
-                    pulseIcon.classList.add('bg-green-600');
-                    pulseIcon.classList.remove('bg-blue-500', 'bg-yellow-500', 'bg-green-500');
+                thinkingSummary.classList.add('hidden');
+                
+                // 🐛 保存Debug数据（如果有reasoning_summary）
+                if (data.result && data.result.reasoning_summary) {
+                    console.log(`[DEBUG] Plan Step ${data.step_order} reasoning_summary:`, data.result.reasoning_summary);
                 }
             }
             
@@ -1359,19 +1346,43 @@ function handleStreamChunk(responseId, data) {
             }
         }
         
-        // 更新summary和preview
+        // 更新content流式渲染
         if (isPlanSkill && currentStep) {
+            // Plan Skill：在步骤的output区域流式渲染内容
+            const stepOutputContent = document.getElementById(`plan-step-${currentStep}-output-content`);
+            if (stepOutputContent) {
+                // 显示output容器
+                const stepOutput = document.getElementById(`plan-step-${currentStep}-output`);
+                if (stepOutput) {
+                    stepOutput.classList.remove('hidden');
+                }
+                
+                // 流式渲染内容
+                try {
+                    const partialData = JSON.parse(data.accumulated);
+                    
+                    if (partialData.questions && Array.isArray(partialData.questions)) {
+                        stepOutputContent.innerHTML = renderQuizStreamingUI(partialData);
+                    } else if (partialData.cards && Array.isArray(partialData.cards)) {
+                        stepOutputContent.innerHTML = renderFlashcardStreamingUI(partialData);
+                    } else if (partialData.concept) {
+                        stepOutputContent.innerHTML = renderExplanationStreamingUI(partialData);
+                    }
+                } catch (e) {
+                    // JSON不完整，显示加载状态
+                    if (!stepOutputContent.innerHTML) {
+                        stepOutputContent.innerHTML = '<div class="text-center py-4"><div class="animate-pulse text-blue-500">📝 正在生成内容...</div></div>';
+                    }
+                }
+            }
+            
+            // 更新thinking summary为"正在生成内容..."
             const thinkingSummary = document.getElementById(`plan-step-${currentStep}-thinking-summary`);
             if (thinkingSummary) {
                 const summaryText = thinkingSummary.querySelector('.thinking-summary-text');
-                const pulseIcon = thinkingSummary.querySelector('.animate-pulse');
-                
-                if (summaryText) {
-                    if (previewHTML) {
-                        summaryText.innerHTML = previewHTML;
-                    } else {
-                        summaryText.textContent = `📝 正在生成内容... (${contentLength} chars)`;
-                    }
+                if (summaryText && !summaryText.textContent.includes('正在生成')) {
+                    summaryText.textContent = '📝 正在生成内容...';
+                    const pulseIcon = thinkingSummary.querySelector('.animate-pulse');
                     if (pulseIcon) {
                         pulseIcon.classList.remove('bg-blue-500', 'bg-yellow-500');
                         pulseIcon.classList.add('bg-green-500');
@@ -1432,31 +1443,20 @@ function handleStreamChunk(responseId, data) {
         console.log('[DEBUG] data.content:', data.content);
         console.log('[DEBUG] data.content.reasoning_summary:', data.content?.reasoning_summary);
         
-        // 🆕 优先使用模型生成的reasoning_summary
-        if (data.content && data.content.reasoning_summary) {
-            const thinkingOverview = document.getElementById(`${responseId}-thinking-overview`);
-            if (thinkingOverview) {
-                const overviewText = document.getElementById(`${responseId}-thinking-overview-text`);
-                const pulseIcon = thinkingOverview.querySelector('.animate-pulse');
-                if (overviewText) {
-                    // 🔥 使用模型生成的summary（优先级最高）
-                    console.log('[DEBUG] Updating summary to:', data.content.reasoning_summary);
-                    overviewText.textContent = `✨ ${data.content.reasoning_summary}`;
-                    overviewText.style.whiteSpace = 'normal';
-                    overviewText.style.wordBreak = 'break-word';
-                    // 停止动画，变为静态绿色图标
-                    if (pulseIcon) {
-                        pulseIcon.classList.remove('animate-pulse', 'bg-blue-500', 'bg-green-500', 'bg-yellow-500');
-                        pulseIcon.classList.add('bg-green-600');
-                    }
-                    thinkingOverview.style.backgroundColor = 'rgba(34, 197, 94, 0.15)';
-                    
-                    // 🐛 保存Debug数据到后端
-                    saveThinkingOverviewDebug(responseId, data.thinking, data.content.reasoning_summary);
-                }
+        // 🆕 Done后隐藏thinking overview（用户只想在thinking过程中看到）
+        const thinkingOverview = document.getElementById(`${responseId}-thinking-overview`);
+        if (thinkingOverview) {
+            // 隐藏overview，保留完整thinking section供用户展开查看
+            thinkingOverview.classList.add('hidden');
+            
+            // 🐛 保存Debug数据到后端（如果有reasoning_summary）
+            if (data.content && data.content.reasoning_summary && data.thinking) {
+                saveThinkingOverviewDebug(responseId, data.thinking, data.content.reasoning_summary);
             }
-        } else {
-            // ⚠️ Fallback：如果没有reasoning_summary，保留"正在生成内容"状态
+        }
+        
+        if (!data.content || !data.content.reasoning_summary) {
+            // ⚠️ Fallback：如果没有reasoning_summary，记录日志
             console.warn('[WARN] No reasoning_summary in done event');
             console.log('[DEBUG] Available keys in data.content:', data.content ? Object.keys(data.content) : 'null');
         }
