@@ -2204,46 +2204,136 @@ function extractThinkingSummary(thinkingText) {
         }
     }
     
-    // 中文模式匹配
-    const chineseActionWords = ['分析', '生成', '整理', '验证', '构建', '思考', '提取', '总结', '规划', '编写', '创建', '设计', '检查', '优化', '理解', '解释'];
+    // 🆕 通用英文动词检测（fallback：捕获任何未匹配的动作动词）
+    const commonVerbs = [
+        'analyzing', 'generating', 'creating', 'building', 'structuring', 'drafting',
+        'explaining', 'understanding', 'identifying', 'determining', 'checking', 'verifying',
+        'extracting', 'summarizing', 'organizing', 'designing', 'planning', 'thinking',
+        'considering', 'evaluating', 'reviewing', 'preparing', 'forming', 'constructing',
+        'developing', 'processing', 'formulating', 'arranging', 'assembling'
+    ];
     
-    for (const action of chineseActionWords) {
-        const pattern = new RegExp(`(正在|需要|我正在|我需要)${action}[^。！？\\n]{0,30}`, 'g');
-        const match = thinkingText.match(pattern);
-        if (match && match[0]) {
-            return match[0].slice(0, 60);
-        }
-    }
+    // 查找最后出现的动词
+    let lastVerbPosition = -1;
+    let lastVerb = null;
+    let lastVerbContext = '';
     
-    // 提取第一个有意义的句子（中文）
-    const sentences = thinkingText.split(/[。！？\n]/);
-    for (const sentence of sentences) {
-        const trimmed = sentence.trim();
-        if (trimmed.length > 10 && trimmed.length < 100) {
-            // 排除纯英文的长句
-            const chineseChars = trimmed.match(/[\u4e00-\u9fa5]/g);
-            if (chineseChars && chineseChars.length > 5) {
-                return trimmed.slice(0, 60) + (trimmed.length > 60 ? '...' : '');
+    for (const verb of commonVerbs) {
+        // 查找 "...ing" 形式
+        const verbPattern = new RegExp(`(${verb})\\s+([^.\\n]{5,40})`, 'gi');
+        let match;
+        verbPattern.lastIndex = 0;
+        while ((match = verbPattern.exec(thinkingText)) !== null) {
+            if (match.index > lastVerbPosition) {
+                lastVerbPosition = match.index;
+                lastVerb = match[1];
+                lastVerbContext = match[2];
             }
         }
     }
     
-    // 提取前60个字符（fallback）
-    return thinkingText.slice(0, 60).trim() + '...';
+    if (lastVerb) {
+        const action = lastVerb.replace(/ing$/, 'e').replace(/ning$/, 'n'); // analyzing -> analyze
+        return `正在${translateAction(action)}${lastVerbContext.slice(0, 20)}...`;
+    }
+    
+    // 中文模式匹配
+    const chineseActionWords = ['分析', '生成', '整理', '验证', '构建', '思考', '提取', '总结', '规划', '编写', '创建', '设计', '检查', '优化', '理解', '解释'];
+    
+    // 查找最后出现的中文动作词
+    let lastChinesePosition = -1;
+    let lastChineseMatch = null;
+    
+    for (const action of chineseActionWords) {
+        const pattern = new RegExp(`(正在|需要|我正在|我需要)${action}[^。！？\\n]{0,30}`, 'g');
+        let match;
+        pattern.lastIndex = 0;
+        while ((match = pattern.exec(thinkingText)) !== null) {
+            if (match.index > lastChinesePosition) {
+                lastChinesePosition = match.index;
+                lastChineseMatch = match[0];
+            }
+        }
+    }
+    
+    if (lastChineseMatch) {
+        return lastChineseMatch.slice(0, 60);
+    }
+    
+    // 🆕 提取最后一个有意义的句子（优先英文，因为thinking通常是英文）
+    const allSentences = thinkingText.split(/[.。！？\n]/);
+    
+    // 从后往前找第一个有意义的句子
+    for (let i = allSentences.length - 1; i >= 0; i--) {
+        const sentence = allSentences[i].trim();
+        if (sentence.length >= 15 && sentence.length <= 100) {
+            // 如果是英文句子，尝试翻译关键动词
+            if (/^[a-zA-Z]/.test(sentence)) {
+                return `思考中：${sentence.slice(0, 40)}...`;
+            }
+            // 如果是中文句子
+            const chineseChars = sentence.match(/[\u4e00-\u9fa5]/g);
+            if (chineseChars && chineseChars.length > 5) {
+                return sentence.slice(0, 60) + (sentence.length > 60 ? '...' : '');
+            }
+        }
+    }
+    
+    // 最终fallback：智能截取（避免截断在单词中间）
+    const text = thinkingText.trim();
+    if (text.length <= 60) {
+        return text;
+    }
+    
+    // 在60字符附近找一个空格或标点，避免截断单词
+    let cutoff = 60;
+    for (let i = 60; i < Math.min(70, text.length); i++) {
+        if (/[\s,.;:!?。，；：！？]/.test(text[i])) {
+            cutoff = i;
+            break;
+        }
+    }
+    
+    return text.slice(0, cutoff).trim() + '...';
 }
 
 /**
- * 翻译英文动作词为中文
+ * 翻译英文动作词为中文（扩展版，支持更多动词）
  */
 function translateAction(action) {
     const actionMap = {
-        'analyze': '分析', 'generate': '生成', 'create': '创建', 'build': '构建',
-        'structure': '构建', 'draft': '编写', 'explain': '解释', 'understand': '理解',
-        'identify': '识别', 'determine': '确定', 'check': '检查', 'verify': '验证',
-        'extract': '提取', 'summarize': '总结', 'organize': '整理', 'design': '设计',
-        'follow': '遵循', 'use': '使用', 'apply': '应用'
+        // 分析类
+        'analyze': '分析', 'analyzes': '分析', 'analyzing': '分析',
+        'evaluate': '评估', 'review': '审查', 'consider': '考虑',
+        
+        // 创建类
+        'generate': '生成', 'create': '创建', 'build': '构建', 'construct': '构建',
+        'structure': '构建', 'form': '形成', 'develop': '开发', 'design': '设计',
+        
+        // 编写类
+        'draft': '编写', 'write': '编写', 'compose': '撰写',
+        
+        // 理解类
+        'explain': '解释', 'understand': '理解', 'clarify': '澄清',
+        
+        // 识别类
+        'identify': '识别', 'determine': '确定', 'recognize': '识别',
+        
+        // 验证类
+        'check': '检查', 'verify': '验证', 'validate': '验证',
+        
+        // 处理类
+        'extract': '提取', 'summarize': '总结', 'organize': '整理',
+        'process': '处理', 'arrange': '安排', 'prepare': '准备',
+        
+        // 规划类
+        'plan': '规划', 'think': '思考', 'formulate': '制定',
+        
+        // 其他
+        'follow': '遵循', 'use': '使用', 'apply': '应用', 'assemble': '组装'
     };
-    return actionMap[action.toLowerCase()] || action;
+    const normalized = action.toLowerCase().replace(/ing$/, '').replace(/es$/, 'e').replace(/s$/, '');
+    return actionMap[normalized] || actionMap[action.toLowerCase()] || action;
 }
 
 function scrollToBottom() {
