@@ -2127,9 +2127,11 @@ function detectContentType(content) {
 }
 
 /**
- * 🆕 智能提取Thinking Summary
+ * 🆕 智能提取Thinking Summary（动态反映当前思考阶段）
  * 从完整的thinking内容中识别AI的思考阶段
  * 支持中英文混合的thinking内容
+ * 
+ * 策略：优先提取**最后出现**的动作，反映当前正在进行的思考阶段
  * 
  * @param {string} thinkingText - 完整的thinking内容
  * @returns {string} - 提取的summary（最多60个字符）
@@ -2142,39 +2144,63 @@ function extractThinkingSummary(thinkingText) {
     const text = thinkingText.toLowerCase();
     
     // 🆕 英文模式匹配（Kimi的thinking通常是英文）
+    // 注意：使用全局匹配，然后取最后一个，反映当前阶段
     const englishPatterns = [
-        // "The user wants to..." / "The user needs..."
-        { pattern: /The user wants (?:me )?to ([^.]{10,50})/, template: (m) => `理解需求：${m[1].slice(0, 30)}...` },
-        { pattern: /The user (?:is asking|asks) (?:me )?to ([^.]{10,50})/, template: (m) => `理解需求：${m[1].slice(0, 30)}...` },
+        // "Let me..." / "I'll..." (最常见的阶段切换标志)
+        { pattern: /(?:Let me|I'll)\s+(\w+)\s+([^.\n]{5,40})/g, template: (m) => `正在${translateAction(m[1])}${m[2].slice(0, 20)}...`, priority: 10 },
         
-        // "I need to..." / "I should..."
-        { pattern: /I (?:need|should|will) (?:to )?(\w+)\s+([^.]{5,40})/, template: (m) => `正在${translateAction(m[1])}${m[2].slice(0, 20)}...` },
+        // "I need to..." / "I should..." / "I will..."
+        { pattern: /I (?:need|should|will) (?:to )?(\w+)\s+([^.\n]{5,40})/g, template: (m) => `正在${translateAction(m[1])}${m[2].slice(0, 20)}...`, priority: 9 },
         
-        // "Let me..." / "I'll..."
-        { pattern: /(?:Let me|I'll)\s+(\w+)\s+([^.]{5,40})/, template: (m) => `正在${translateAction(m[1])}${m[2].slice(0, 20)}...` },
-        
-        // "This is a ... concept/question"
-        { pattern: /This is a (\w+)\s+(concept|question|topic)/, template: (m) => `识别为${m[1] === 'simple' ? '简单' : m[1] === 'complex' ? '复杂' : ''}${m[2] === 'concept' ? '概念' : '问题'}` },
+        // "Now I..." (当前阶段)
+        { pattern: /Now I (?:will|need to|should) (\w+)\s+([^.\n]{5,40})/g, template: (m) => `正在${translateAction(m[1])}${m[2].slice(0, 20)}...`, priority: 8 },
         
         // "I should follow the ... strategy"
-        { pattern: /I should follow the "?([^"]{5,30})"? strategy/, template: (m) => `应用策略：${m[1]}` },
+        { pattern: /I should follow the "?([^"\n]{5,30})"? strategy/g, template: (m) => `应用策略：${m[1]}`, priority: 7 },
         
-        // "Let me structure/draft..."
-        { pattern: /Let me (structure|draft|create|generate) ([^.]{5,40})/, template: (m) => `正在${translateAction(m[1])}${m[2].slice(0, 20)}...` }
+        // "This is a ... concept/question"
+        { pattern: /This is a (\w+)\s+(concept|question|topic)/g, template: (m) => `识别为${m[1] === 'simple' ? '简单' : m[1] === 'complex' ? '复杂' : ''}${m[2] === 'concept' ? '概念' : '问题'}`, priority: 6 },
+        
+        // "The user wants to..." / "The user needs..." (优先级降低，只在开始时使用)
+        { pattern: /The user wants (?:me )?to ([^.\n]{10,50})/g, template: (m) => `理解需求：${m[1].slice(0, 30)}...`, priority: 3 },
+        { pattern: /The user (?:is asking|asks) (?:me )?to ([^.\n]{10,50})/g, template: (m) => `理解需求：${m[1].slice(0, 30)}...`, priority: 2 }
     ];
     
-    // 尝试英文模式匹配
-    for (const {pattern, template} of englishPatterns) {
-        const match = thinkingText.match(pattern);
-        if (match) {
-            try {
-                const summary = template(match);
-                if (summary && summary.length > 5) {
-                    return summary.slice(0, 60);
+    // 收集所有匹配项，按位置排序
+    let bestMatch = null;
+    let bestPosition = -1;
+    let bestPriority = -1;
+    
+    for (const {pattern, template, priority} of englishPatterns) {
+        // 重置lastIndex
+        pattern.lastIndex = 0;
+        
+        let match;
+        while ((match = pattern.exec(thinkingText)) !== null) {
+            const position = match.index;
+            // 优先选择最后出现的高优先级匹配
+            if (position > bestPosition || (position === bestPosition && priority > bestPriority)) {
+                bestMatch = match;
+                bestPosition = position;
+                bestPriority = priority;
+                
+                // 保存template函数
+                if (!bestMatch._template) {
+                    bestMatch._template = template;
                 }
-            } catch (e) {
-                // 继续尝试下一个模式
             }
+        }
+    }
+    
+    // 如果找到匹配，使用最后一个（反映当前阶段）
+    if (bestMatch && bestMatch._template) {
+        try {
+            const summary = bestMatch._template(bestMatch);
+            if (summary && summary.length > 5) {
+                return summary.slice(0, 60);
+            }
+        } catch (e) {
+            console.warn('Summary extraction error:', e);
         }
     }
     
