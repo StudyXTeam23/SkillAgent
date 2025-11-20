@@ -89,10 +89,10 @@ models:
   primary: "moonshotai/kimi-k2-thinking"  # 🆕 使用 Kimi thinking 模型
   fallback: "moonshotai/kimi-k2-thinking"
 
-thinking_budget: 96  # ⚡⚡⚡ 平衡模式：考虑上下文整合需求
-                     # - Plan Skill中需要理解reference_explanation
-                     # - 独立调用: 快速响应 (5-10秒)
-                     # - 上下文调用: 确保内容一致性 (10-15秒)
+thinking_budget: 64  # ⚡⚡⚡⚡ 极速模式：上下文已在prompt中，无需过多思考
+                     # - reference_explanation已包含所有信息
+                     # - 只需快速提取关键点生成卡片
+                     # - 配合max_tokens(3564)确保输出完整
 temperature: 1.0  # ⚡⚡⚡ 极限优化：提高至1.0，最大化生成速度
 
 context:

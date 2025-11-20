@@ -1181,10 +1181,14 @@ class SkillOrchestrator:
         thinking_accumulated = []
         content_accumulated = []
         
+        # 获取 thinking_budget（优先使用 skill 配置）
+        thinking_budget = getattr(skill, 'thinking_budget', 64)
+        logger.info(f"🎯 Executing sub-skill: {skill_id}, thinking_budget={thinking_budget}")
+        
         async for chunk in self.gemini_client.generate_stream(
             prompt=full_prompt,
             model=getattr(skill, 'models', {}).get('primary', 'moonshotai/kimi-k2-thinking'),
-            thinking_budget=getattr(skill, 'thinking_budget', 64),  # ⚡⚡⚡ 极速思考：64 tokens
+            thinking_budget=thinking_budget,
             buffer_size=1,
             temperature=getattr(skill, 'temperature', 1.0)
         ):
