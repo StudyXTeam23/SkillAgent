@@ -860,6 +860,38 @@ function handleStreamChunk(responseId, data) {
                     }
                 }
             }
+            
+            // 🆕 立即在该步骤下方显示输出结果
+            const stepOutputSection = document.getElementById(`plan-step-${data.step_order}-output`);
+            const stepOutputContent = document.getElementById(`plan-step-${data.step_order}-output-content`);
+            
+            if (stepOutputSection && stepOutputContent && data.result) {
+                stepOutputSection.classList.remove('hidden');
+                
+                // 根据result的类型渲染不同的UI
+                const result = data.result;
+                const contentType = detectContentType(result);
+                
+                if (contentType === 'explanation' && result.concept) {
+                    stepOutputContent.innerHTML = renderExplainCard(result);
+                } else if (contentType === 'flashcard_set' && result.cards) {
+                    stepOutputContent.innerHTML = renderFlashcardSet(result);
+                } else if (contentType === 'quiz_set' && result.questions) {
+                    stepOutputContent.innerHTML = renderQuizCard(result);
+                } else if (contentType === 'mindmap' && result.root) {
+                    stepOutputContent.innerHTML = renderMindMapCard(result);
+                } else if (contentType === 'notes' && result.structured_notes) {
+                    stepOutputContent.innerHTML = renderNotesCard(result);
+                } else {
+                    // 未知类型，显示简单的JSON摘要
+                    stepOutputContent.innerHTML = `
+                        <div class="text-sm text-text-light-secondary dark:text-text-dark-secondary">
+                            <p class="font-semibold mb-2">步骤结果：</p>
+                            <pre class="text-xs bg-white dark:bg-gray-800 p-3 rounded border border-border-light dark:border-border-dark overflow-auto max-h-64">${JSON.stringify(result, null, 2)}</pre>
+                        </div>
+                    `;
+                }
+            }
         }
     }
     else if (data.type === 'step_error') {
@@ -920,16 +952,13 @@ function handleStreamChunk(responseId, data) {
                 }
             }
             
-            // 同时更新thinking summary（提取第一句话作为概括）
+            // 🆕 智能提取thinking summary（识别AI的思考阶段）
             const thinkingSummary = document.getElementById(`plan-step-${currentStep}-thinking-summary`);
             if (thinkingSummary && stepThinkingContent) {
                 const summaryText = thinkingSummary.querySelector('.thinking-summary-text');
                 if (summaryText) {
                     const fullText = stepThinkingContent.textContent;
-                    // 提取第一句话（最多50个字符）
-                    const firstSentence = fullText.split(/[。！？\n]/)[0].trim();
-                    const summary = firstSentence.slice(0, 50) + (firstSentence.length > 50 ? '...' : '');
-                    summaryText.textContent = summary || `正在思考...`;
+                    summaryText.textContent = extractThinkingSummary(fullText);
                 }
             }
         } else {
@@ -965,7 +994,7 @@ function handleStreamChunk(responseId, data) {
                 }
             }
             
-            // 同时更新thinking summary
+            // 🆕 智能提取thinking summary（识别AI的思考阶段）
             const thinkingOverview = document.getElementById(`${responseId}-thinking-overview`);
             if (thinkingOverview) {
                 if (thinkingOverview.classList.contains('hidden')) {
@@ -974,10 +1003,7 @@ function handleStreamChunk(responseId, data) {
                 const overviewText = document.getElementById(`${responseId}-thinking-overview-text`);
                 if (overviewText && thinkingEl) {
                     const fullText = thinkingEl.textContent;
-                    // 提取第一句话作为summary
-                    const firstSentence = fullText.split(/[。！？\n]/)[0].trim();
-                    const summary = firstSentence.slice(0, 50) + (firstSentence.length > 50 ? '...' : '');
-                    overviewText.textContent = summary || '正在思考...';
+                    overviewText.textContent = extractThinkingSummary(fullText);
                 }
             }
         }
@@ -1179,6 +1205,19 @@ function renderPlanPreview(topic, stepsPreview, totalSteps) {
                             <pre id="plan-step-${stepNumber}-thinking-content" class="whitespace-pre-wrap text-xs text-text-light-secondary dark:text-text-dark-secondary leading-relaxed"></pre>
                         </div>
                     </details>
+                </div>
+                
+                <!-- 🆕 该步骤的输出结果（步骤完成后立即显示） -->
+                <div id="plan-step-${stepNumber}-output" class="hidden border-t border-border-light dark:border-border-dark bg-green-50 dark:bg-green-900/10 p-4">
+                    <div class="flex items-center gap-2 mb-3">
+                        <svg class="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        <span class="text-xs font-semibold text-green-700 dark:text-green-400">✅ 步骤输出</span>
+                    </div>
+                    <div id="plan-step-${stepNumber}-output-content" class="w-full">
+                        <!-- 该步骤的结果将渲染在这里 -->
+                    </div>
                 </div>
             </div>
         `;
@@ -2039,6 +2078,99 @@ let userScrolledAway = false;
 let scrollCheckTimeout = null;
 let lastScrollTop = 0;
 let isAutoScrolling = false;
+
+/**
+ * 🆕 检测内容类型
+ * @param {object} content - 内容对象
+ * @returns {string} - 内容类型
+ */
+function detectContentType(content) {
+    if (!content) return 'unknown';
+    
+    if (content.questions && Array.isArray(content.questions)) {
+        return 'quiz_set';
+    } else if (content.concept && content.intuition) {
+        return 'explanation';
+    } else if (content.cards && Array.isArray(content.cards)) {
+        return 'flashcard_set';
+    } else if (content.components && Array.isArray(content.components)) {
+        return 'learning_bundle';
+    } else if (content.root && content.root.name) {
+        return 'mindmap';
+    } else if (content.structured_notes) {
+        return 'notes';
+    } else {
+        return 'unknown';
+    }
+}
+
+/**
+ * 🆕 智能提取Thinking Summary
+ * 从完整的thinking内容中识别AI的思考阶段，而不是简单提取第一句话
+ * 
+ * 识别模式：
+ * - "正在分析..." / "正在生成..." / "正在整理..."
+ * - "需要分析..." / "需要生成..." / "需要整理..."
+ * - "我正在..." / "我将要..." / "我需要..."
+ * 
+ * @param {string} thinkingText - 完整的thinking内容
+ * @returns {string} - 提取的summary（最多50个字符）
+ */
+function extractThinkingSummary(thinkingText) {
+    if (!thinkingText || thinkingText.trim().length === 0) {
+        return '正在思考...';
+    }
+    
+    // 关键动作词列表
+    const actionWords = [
+        '分析', '生成', '整理', '验证', '构建', '思考', '提取', '总结', '规划',
+        '编写', '创建', '设计', '检查', '优化', '组织', '理解', '解释', '推理',
+        '评估', '选择', '确定', '识别', '比较', '综合', '归纳', '演绎'
+    ];
+    
+    // 模式1: "正在XXX..." / "正在XXX核心概念..."
+    for (const action of actionWords) {
+        const pattern1 = new RegExp(`正在${action}[^。！？\\n]{0,40}`, 'g');
+        const match1 = thinkingText.match(pattern1);
+        if (match1 && match1[0]) {
+            return match1[0].slice(0, 50) + (match1[0].length > 50 ? '...' : '');
+        }
+    }
+    
+    // 模式2: "需要XXX..." / "需要XXX关键信息..."
+    for (const action of actionWords) {
+        const pattern2 = new RegExp(`需要${action}[^。！？\\n]{0,40}`, 'g');
+        const match2 = thinkingText.match(pattern2);
+        if (match2 && match2[0]) {
+            return match2[0].slice(0, 50) + (match2[0].length > 50 ? '...' : '');
+        }
+    }
+    
+    // 模式3: "我正在XXX..." / "我将要XXX..." / "我需要XXX..."
+    for (const action of actionWords) {
+        const pattern3 = new RegExp(`我(正在|将要|需要)${action}[^。！？\\n]{0,40}`, 'g');
+        const match3 = thinkingText.match(pattern3);
+        if (match3 && match3[0]) {
+            return match3[0].slice(0, 50) + (match3[0].length > 50 ? '...' : '');
+        }
+    }
+    
+    // 模式4: 包含核心问题的句子（如"用户想要..."）
+    const questionPattern = /(用户(想要|需要|希望|要求)[^。！？\n]{0,40})/g;
+    const questionMatch = thinkingText.match(questionPattern);
+    if (questionMatch && questionMatch[0]) {
+        return questionMatch[0].slice(0, 50) + (questionMatch[0].length > 50 ? '...' : '');
+    }
+    
+    // 如果没有匹配任何模式，提取第一句话（fallback）
+    const firstSentence = thinkingText.split(/[。！？\n]/)[0].trim();
+    if (firstSentence.length > 0) {
+        return firstSentence.slice(0, 50) + (firstSentence.length > 50 ? '...' : '');
+    }
+    
+    // 最后的fallback
+    return '正在思考...';
+}
 
 function scrollToBottom() {
     const chatArea = document.getElementById('chatMessages');
