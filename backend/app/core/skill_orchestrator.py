@@ -177,6 +177,42 @@ class SkillOrchestrator:
             full_thinking = "".join(thinking_accumulated)
             full_content = "".join(content_accumulated)
             
+            # 🔥 如果content没有流式发送过（Kimi一次性生成），强制拆分流式显示
+            content_chunks_sent = len(content_accumulated)
+            logger.info(f"📊 Content chunks received: {content_chunks_sent}")
+            
+            if content_chunks_sent == 0 and full_content:
+                # 完全没有content chunks，但有完整content（不应该发生）
+                logger.warning(f"⚠️  No content chunks but have full_content, forcing stream")
+                # 强制拆分发送
+                chunk_size = 50
+                for i in range(0, len(full_content), chunk_size):
+                    mini_chunk = full_content[i:i+chunk_size]
+                    accumulated_so_far = full_content[:i+len(mini_chunk)]
+                    yield {
+                        "type": "content",
+                        "text": mini_chunk,
+                        "accumulated": accumulated_so_far
+                    }
+            elif content_chunks_sent > 0 and content_chunks_sent < 5:
+                # Content chunks太少（可能Kimi一次性生成了大块），强制拆分最后一块
+                logger.info(f"📦 Content sent in {content_chunks_sent} large chunks, forcing granular stream")
+                # 如果最后一块很大，拆分它
+                if len(content_accumulated) > 0:
+                    last_chunk = content_accumulated[-1]
+                    if len(last_chunk) > 100:  # 如果最后一块超过100字符
+                        logger.info(f"✂️  Splitting large final chunk ({len(last_chunk)} chars)")
+                        chunk_size = 50
+                        base_accumulated = "".join(content_accumulated[:-1])
+                        for i in range(0, len(last_chunk), chunk_size):
+                            mini_chunk = last_chunk[i:i+chunk_size]
+                            accumulated_so_far = base_accumulated + last_chunk[:i+len(mini_chunk)]
+                            yield {
+                                "type": "content",
+                                "text": mini_chunk,
+                                "accumulated": accumulated_so_far
+                            }
+            
             # 🔧 提取JSON（去除markdown代码块）
             json_str = full_content
             if "```json" in json_str:

@@ -265,11 +265,10 @@ class KimiClient:
             logger.info(f"📊 Final content: {len(full_content)} chars")
             logger.info(f"🧠 Final reasoning: {len(full_thinking)} chars")
             
-            yield {
-                "type": "done",
-                "thinking": full_thinking,
-                "content": full_content
-            }
+            # 🔥 不在这里发送done事件！
+            # done事件应该由skill_orchestrator发送，包含解析后的content
+            # 这里只是标记流式结束
+            logger.info(f"🏁 Stream ended (orchestrator will send done event)")
         
         except Exception as e:
             error_msg = str(e)
