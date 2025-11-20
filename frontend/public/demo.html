@@ -838,20 +838,27 @@ function handleStreamChunk(responseId, data) {
                 statusLabel.classList.add('bg-green-100', 'dark:bg-green-900', 'text-green-700', 'dark:text-green-300');
             }
             
-            // 更新thinking summary为完成状态
+            // 🔥 更新thinking summary为reasoning_summary（如果有）
             const thinkingSummary = document.getElementById(`plan-step-${data.step_order}-thinking-summary`);
             if (thinkingSummary) {
                 const summaryText = thinkingSummary.querySelector('.thinking-summary-text');
-                if (summaryText) {
-                    summaryText.textContent = `已完成${data.step_name}`;
+                if (summaryText && data.result && data.result.reasoning_summary) {
+                    // ✅ 使用模型生成的reasoning_summary
+                    summaryText.textContent = `✨ ${data.result.reasoning_summary}`;
                     summaryText.classList.remove('italic');
-                    // 移除动画
-                    const pulseIcon = thinkingSummary.querySelector('.animate-pulse');
-                    if (pulseIcon) {
-                        pulseIcon.classList.remove('animate-pulse');
-                        pulseIcon.classList.add('bg-green-500');
-                        pulseIcon.classList.remove('bg-blue-500');
+                    console.log(`[DEBUG] Plan Step ${data.step_order} summary:`, data.result.reasoning_summary);
+                } else if (summaryText) {
+                    // Fallback：保留"正在生成内容"或显示完成状态
+                    if (!summaryText.textContent.includes('正在生成')) {
+                        summaryText.textContent = `✅ ${data.step_name}完成`;
                     }
+                }
+                // 移除动画
+                const pulseIcon = thinkingSummary.querySelector('.animate-pulse');
+                if (pulseIcon) {
+                    pulseIcon.classList.remove('animate-pulse');
+                    pulseIcon.classList.add('bg-green-600');
+                    pulseIcon.classList.remove('bg-blue-500', 'bg-yellow-500', 'bg-green-500');
                 }
             }
             

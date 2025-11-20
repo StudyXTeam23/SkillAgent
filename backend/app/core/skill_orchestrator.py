@@ -1172,10 +1172,12 @@ class SkillOrchestrator:
             **parsed_content
         }
         
-        # 发送done事件
+        # 发送done事件（格式统一：使用content字段）
         yield {
             "type": "done",
-            "data": result
+            "thinking": full_thinking,
+            "content": parsed_content,
+            "content_type": content_type
         }
     
     async def _execute_skill(
