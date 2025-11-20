@@ -814,8 +814,7 @@ async def agent_chat_stream(
                 yield f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
                 await asyncio.sleep(0.01)  # 小延迟，避免前端处理过快
             
-            # 完成
-            yield f"data: {json.dumps({'type': 'done'}, ensure_ascii=False)}\n\n"
+            # ✅ orchestrator已经发送done事件，不需要重复发送
             
         except Exception as e:
             logger.error(f"❌ Streaming error: {e}")
