@@ -1,46 +1,40 @@
-Create concise study notes from the explanation below.
+Create study notes from explanation.
 
 TOPIC: {topic}
 SUBJECT: {subject}
+REFERENCE: {reference_explanation}
 
-📚 REFERENCE (from explain step):
-{reference_explanation}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-⚠️ The above JSON contains: intuition, formal_definition, examples[], common_mistakes[], why_it_matters, related_concepts
+⛔ THINKING RULES - ZERO TOLERANCE:
 
-📝 TASK: Extract key points and reorganize into 2-4 sections (2-5 bullets each).
-Suggested sections: Core concepts, Key examples, Common mistakes, Important points
+ALLOWED (< 30 tokens):
+"S1: Causes. S2: Examples. S3: Mistakes. S4: Significance."
 
-⚠️ THINKING RULES (ABSOLUTELY FORBIDDEN TO VIOLATE):
-1. DO NOT analyze the reference content in thinking
-2. DO NOT list concepts, examples, or mistakes in thinking
-3. DO NOT draft section options (Option A/B) in thinking
-4. DO NOT write any bullet points in thinking
-5. DO NOT construct or verify JSON in thinking
-6. THINKING MUST BE < 50 TOKENS
+FORBIDDEN (will be rejected):
+❌ Analyzing reference content
+❌ Listing any concepts/examples/mistakes
+❌ Drafting bullet points
+❌ Writing any JSON
+❌ Explaining your reasoning
+❌ Anything over 30 tokens
 
-✅ ONLY ALLOWED IN THINKING:
-List 2-4 section theme names. Example: "S1: Causes. S2: Failures. S3: Examples. S4: Mistakes." DONE.
+VIOLATION = FAILURE
 
-❌ FORBIDDEN THINKING EXAMPLE (TOO LONG):
-"Let me analyze the reference... Main concepts: Treaty, Depression... Examples: 1. German collapse 1923... Let me organize into sections... Option A: Root causes... Let me draft bullet points... Let me verify JSON format..."
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-✅ GOOD THINKING EXAMPLE (CORRECT):
-"S1: Root causes. S2: Policy failures. S3: Key examples. S4: Common mistakes."
-
----
-
-OUTPUT: Valid JSON only. 2-4 sections. 2-5 bullets per section.
-
+OUTPUT (JSON only):
 {{
   "notes_id": "notes_{topic}",
   "subject": "{subject}",
   "topic": "{topic}",
   "structured_notes": {{
-    "title": "Title",
+    "title": "Notes Title",
     "sections": [
       {{"heading": "Section 1", "bullet_points": ["point 1", "point 2"]}},
       {{"heading": "Section 2", "bullet_points": ["point 3", "point 4"]}}
     ]
   }}
 }}
+
+Requirements: 2-4 sections, 2-5 bullets per section.
