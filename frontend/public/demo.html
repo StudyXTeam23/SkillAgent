@@ -1005,13 +1005,37 @@ function handleStreamChunk(responseId, data) {
                 const overviewText = document.getElementById(`${responseId}-thinking-overview-text`);
                 if (overviewText && thinkingEl) {
                     const fullText = thinkingEl.textContent;
-                    // 🔥 降低更新频率：只在thinking内容达到一定长度或出现句号时才更新
-                    const shouldUpdate = fullText.length % 200 < 10 || /[.。!！?？]/.test(data.text);
-                    if (shouldUpdate) {
-                        const summary = extractThinkingSummary(fullText);
-                        // 只在summary真正改变时才更新（避免相同内容的闪烁）
-                        if (overviewText.textContent !== summary) {
-                            overviewText.textContent = summary;
+                    
+                    // 🔥 检测thinking即将结束的关键词
+                    const thinkingEndKeywords = [
+                        'Let me craft the JSON',
+                        'craft the JSON response',
+                        'following the exact format',
+                        '按照要求的格式',
+                        '现在开始生成JSON',
+                        'Now let me generate'
+                    ];
+                    const isThinkingEnding = thinkingEndKeywords.some(kw => fullText.includes(kw));
+                    
+                    if (isThinkingEnding && !overviewText.textContent.includes('准备生成')) {
+                        // 🎨 thinking即将结束，显示明显提示
+                        overviewText.innerHTML = '⏳ <span class="animate-pulse">准备生成内容...</span>';
+                        const pulseIcon = thinkingOverview.querySelector('.w-2.h-2');
+                        if (pulseIcon) {
+                            pulseIcon.classList.remove('bg-blue-500');
+                            pulseIcon.classList.add('bg-yellow-500');
+                        }
+                        thinkingOverview.style.backgroundColor = 'rgba(251, 191, 36, 0.1)';
+                    } else if (!isThinkingEnding) {
+                        // 正常thinking阶段，继续更新summary
+                        // 🔥 降低更新频率：只在thinking内容达到一定长度或出现句号时才更新
+                        const shouldUpdate = fullText.length % 200 < 10 || /[.。!！?？]/.test(data.text);
+                        if (shouldUpdate) {
+                            const summary = extractThinkingSummary(fullText);
+                            // 只在summary真正改变时才更新（避免相同内容的闪烁）
+                            if (overviewText.textContent !== summary) {
+                                overviewText.textContent = summary;
+                            }
                         }
                     }
                 }
@@ -1074,7 +1098,10 @@ function handleStreamChunk(responseId, data) {
                 const pulseIcon = thinkingOverview.querySelector('.animate-pulse');
                 if (overviewText) {
                     // 使用模型生成的summary（更准确！）
-                    overviewText.textContent = `✨ ${data.content.reasoning_summary}`;
+                    // 🔥 保留空格，完整显示，不截断
+                    overviewText.innerHTML = `✨ ${data.content.reasoning_summary}`;
+                    overviewText.style.whiteSpace = 'pre-wrap';  // 保留空格和换行
+                    overviewText.style.wordBreak = 'break-word';  // 长单词自动换行
                     // 停止动画，变为静态绿色图标
                     if (pulseIcon) {
                         pulseIcon.classList.remove('animate-pulse', 'bg-blue-500', 'bg-green-500');

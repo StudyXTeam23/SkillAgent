@@ -52,9 +52,12 @@ You must return a valid JSON object in this exact format:
       "hints": ["记忆提示1", "记忆提示2"],
       "related_concepts": ["相关概念1", "相关概念2"]
     }
-  ]
+  ],
+  "reasoning_summary": "一句话总结你的卡片设计思路（为什么选择这些卡片/这种类型/这个难度）"
 }
 ```
+
+**reasoning_summary Guidelines**: 20-50 tokens, explain why you chose these cards, card types, and difficulty level.
 
 ## Guidelines
 

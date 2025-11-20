@@ -70,9 +70,12 @@ You must return a valid JSON object in this exact format:
     }
   ],
   "estimated_time_minutes": 10-20,
-  "learning_objectives": ["学习目标1", "学习目标2"]
+  "learning_objectives": ["学习目标1", "学习目标2"],
+  "reasoning_summary": "一句话总结你的题目设计思路（为什么选择这些题型/这个难度/这个考点）"
 }
 ```
+
+**reasoning_summary Guidelines**: 20-50 tokens, explain why you chose these question types, difficulty level, and topics.
 
 ## Guidelines
 
