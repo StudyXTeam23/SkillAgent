@@ -581,7 +581,10 @@ class PlanSkillExecutor:
                         if field_path:
                             step_input[key] = self._get_nested_value(step_contexts[step_id], field_path)
                         else:
-                            step_input[key] = step_contexts[step_id]
+                            # 传递完整上下文
+                            context_value = step_contexts[step_id]
+                            step_input[key] = context_value
+                            logger.info(f"📦 传递上下文: {key} <- context.{step_id} (包含 {len(context_value)} 个字段: {list(context_value.keys()) if isinstance(context_value, dict) else 'non-dict'})")
                     else:
                         # 🆕 Phase 4.2: 当依赖的步骤被动态跳过时，传 None 而不是忽略
                         # 这样下游 skill 知道这个参数应该存在但被跳过了

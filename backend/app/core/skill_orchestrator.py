@@ -1339,26 +1339,44 @@ class SkillOrchestrator:
         Returns:
             格式化后的 prompt
         """
-        # 简单实现：在 prompt 后附加参数 JSON
         import json
         
-        # 🔥 过滤掉 None 值和不可序列化的对象，避免 JSON 序列化错误
+        # 🔥 Step 1: 替换 prompt 模板中的占位符
+        # 准备格式化参数（包括 JSON 序列化）
+        format_params = {}
+        for k, v in params.items():
+            if v is None:
+                format_params[k] = ""  # None 替换为空字符串
+            elif isinstance(v, (dict, list)):
+                # 字典和列表序列化为 JSON
+                format_params[k] = json.dumps(v, ensure_ascii=False, indent=2)
+            else:
+                format_params[k] = str(v)
+        
+        # 替换模板中的占位符
+        try:
+            formatted = prompt_template.format(**format_params)
+        except KeyError as e:
+            # 如果有缺失的参数，记录警告并使用原模板
+            logger.warning(f"⚠️  Prompt 模板缺少参数: {e}")
+            formatted = prompt_template
+        
+        # 🔥 Step 2: 附加参数 JSON（作为备用/调试信息）
+        # 过滤掉 None 值和不可序列化的对象
         clean_params = {}
         for k, v in params.items():
             if v is not None:
-                # 检查是否可序列化
                 try:
                     json.dumps(v)
                     clean_params[k] = v
                 except (TypeError, ValueError):
-                    # 不可序列化，转换为字符串
                     clean_params[k] = str(v)
         
         params_json = json.dumps(clean_params, ensure_ascii=False, indent=2)
         
-        formatted = f"""{prompt_template}
+        formatted += f"""
 
-## Input Parameters
+## Input Parameters (JSON)
 
 ```json
 {params_json}
