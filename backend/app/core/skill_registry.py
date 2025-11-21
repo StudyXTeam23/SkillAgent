@@ -283,7 +283,11 @@ class SkillRegistry:
         
         return metadata
     
-    def match_message(self, message: str) -> Optional[SkillMatch]:
+    def match_message(
+        self, 
+        message: str, 
+        current_topic: Optional[str] = None
+    ) -> Optional[SkillMatch]:
         """
         匹配用户消息到技能（0 tokens）
         
@@ -291,6 +295,7 @@ class SkillRegistry:
         
         Args:
             message: 用户消息
+            current_topic: 当前对话主题（从 session_context 获取）
         
         Returns:
             SkillMatch 或 None（未匹配）
@@ -300,7 +305,7 @@ class SkillRegistry:
             return None
         
         # 🆕 Phase 4.1: 先检测混合意图
-        mixed_match = self._detect_mixed_intent(message)
+        mixed_match = self._detect_mixed_intent(message, current_topic)
         if mixed_match:
             logger.info(f"🔀 Detected mixed intent, matched to: {mixed_match.skill_id}")
             return mixed_match
@@ -315,8 +320,8 @@ class SkillRegistry:
             if not matched_keywords:
                 continue  # 没有匹配关键词，跳过
             
-            # 提取参数
-            parameters = self._extract_parameters(message, metadata, skill_id)
+            # 提取参数（传递 current_topic）
+            parameters = self._extract_parameters(message, metadata, skill_id, current_topic)
             
             # 计算置信度
             confidence = self._calculate_confidence(
@@ -357,10 +362,17 @@ class SkillRegistry:
         self,
         message: str,
         metadata: Dict[str, Any],
-        skill_id: str
+        skill_id: str,
+        current_topic: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         从消息中提取参数
+        
+        Args:
+            message: 用户消息
+            metadata: 技能元数据
+            skill_id: 技能 ID
+            current_topic: 当前对话主题（从 session_context）
         
         Returns:
             parameters dict (topic, quantity, use_last_artifact, etc.)
@@ -389,6 +401,12 @@ class SkillRegistry:
         
         # 2. 提取主题
         topic = self._extract_topic(message, metadata)
+        
+        # 🔥 如果消息中没有明确主题，但有 current_topic，使用它
+        if not topic and current_topic:
+            topic = current_topic
+            logger.info(f"📚 Using current_topic from context: {topic}")
+        
         if topic:
             params['topic'] = topic
             # 对于 explain_skill，topic 应该设置为 concept_name
@@ -396,7 +414,7 @@ class SkillRegistry:
                 params['concept_name'] = topic
         
         # 3. 检测上下文引用 - 使用简单的关键词检测
-        context_keywords = ['根据', '基于', '刚才', '这些', '这道', '上面', '第一', '第二', '第三', '第']
+        context_keywords = ['根据', '基于', '刚才', '这些', '这道', '上面', '第一', '第二', '第三', '第', '再来', '再给']
         if any(kw in message for kw in context_keywords):
             params['use_last_artifact'] = True
             logger.debug(f"🔗 Detected context reference")
@@ -483,7 +501,11 @@ class SkillRegistry:
         
         return min(confidence, 1.0)  # 最大 1.0
     
-    def _detect_mixed_intent(self, message: str) -> Optional[SkillMatch]:
+    def _detect_mixed_intent(
+        self, 
+        message: str, 
+        current_topic: Optional[str] = None
+    ) -> Optional[SkillMatch]:
         """
         检测混合意图（多个技能关键词）
         
@@ -491,6 +513,7 @@ class SkillRegistry:
         
         Args:
             message: 用户消息
+            current_topic: 当前对话主题（从 session_context）
         
         Returns:
             SkillMatch for learning_plan_skill or None
@@ -549,6 +572,12 @@ class SkillRegistry:
                     if len(topic) >= 2:
                         params['topic'] = topic
                         break
+            
+            # 🔥 如果没有提取到主题，使用 current_topic
+            if not topic and current_topic:
+                topic = current_topic
+                params['topic'] = topic
+                logger.info(f"📚 Using current_topic for mixed intent: {topic}")
             
             # 提取数量参数
             quantity_match = re.search(r'(\d+)\s*[道个张份]', message)

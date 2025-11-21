@@ -324,21 +324,21 @@ class SkillOrchestrator:
             
             logger.info(f"✅ Detected content_type: {content_type}")
             
-            # Step 8: 更新 memory
-            # 更新 current_topic
-            if params.get("topic"):
-                session_ctx = await self.memory_manager.get_session_context(session_id)
-                if session_ctx:
-                    session_ctx.current_topic = params["topic"]
-                    await self.memory_manager.update_session_context(
-                        session_id=session_id,
-                        context=session_ctx
-                    )
+            # Step 8: 更新 memory（保存 artifact，构建用户画像）
+            logger.info(f"💾 Saving artifact in stream mode (type: {content_type})")
             
-            # 添加到 artifact history
-            # 🔧 TODO: 实现artifact保存逻辑
-            # 流式模式下先跳过artifact保存，专注于内容生成
-            logger.info(f"ℹ️  Skipping artifact save in stream mode (type: {content_type})")
+            # 🔥 调用统一的 _update_memory 方法
+            try:
+                await self._update_memory(
+                    user_id=user_id,
+                    session_id=session_id,
+                    intent_result=intent_result,
+                    skill_result=parsed_content
+                )
+                logger.info(f"✅ Artifact saved and memory updated in stream mode")
+            except Exception as e:
+                logger.error(f"❌ Failed to save artifact in stream mode: {e}")
+                # 不中断流程，继续返回结果
             
             # 完成
             yield {

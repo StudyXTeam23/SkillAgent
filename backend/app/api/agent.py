@@ -212,10 +212,17 @@ async def agent_chat(
         logger.info("🧭 STEP 2: Parsing User Intent (Intent Router)...")
         intent_start = time.time()
         
+        # 🔥 从 session_context 获取 current_topic
+        current_topic = None
+        if session_context and hasattr(session_context, 'current_topic'):
+            current_topic = session_context.current_topic
+            logger.info(f"📚 Passing current_topic to Intent Router: {current_topic}")
+        
         intent_results = await intent_router.parse(
             message=request.message,
             memory_summary=memory_summary,
-            last_artifact_summary=last_artifact_summary
+            last_artifact_summary=last_artifact_summary,
+            current_topic=current_topic
         )
         
         intent_elapsed = time.time() - intent_start
@@ -793,10 +800,17 @@ async def agent_chat_stream(
             # 🔥 使用 orchestrator 的 llm_client（已根据配置选择 Kimi 或 Gemini）
             intent_router = IntentRouter(gemini_client=orchestrator.llm_client)
             
+            # 🔥 从 session_context 获取 current_topic
+            current_topic = None
+            if session_context and hasattr(session_context, 'current_topic'):
+                current_topic = session_context.current_topic
+                logger.info(f"📚 Passing current_topic to Intent Router: {current_topic}")
+            
             intent_results = await intent_router.parse(
                 message=request.message,
                 memory_summary=memory_summary,
-                last_artifact_summary=last_artifact_summary
+                last_artifact_summary=last_artifact_summary,
+                current_topic=current_topic
             )
             
             if not intent_results:
