@@ -302,36 +302,45 @@ class SkillOrchestrator:
                 logger.info(f"✅ JSON parsed successfully")
             except json.JSONDecodeError as e:
                 logger.error(f"❌ Failed to parse JSON: {e}")
-                logger.error(f"Content preview: {json_str[:200]}")
+                logger.error(f"Content preview: {json_str[:200]}...")
+                logger.error(f"Content tail: ...{json_str[-100:]}")
                 
-                # 🔧 尝试修复截断的JSON
-                # 策略：添加缺失的闭合符号
-                if "Unterminated string" in str(e) or "Expecting" in str(e):
-                    logger.warning(f"⚠️  JSON appears truncated, attempting to fix...")
+                # 🔧 智能修复截断的 JSON
+                if "Unterminated string" in str(e) or "Expecting" in str(e) or "truncated" in str(e).lower():
+                    logger.warning(f"⚠️  JSON appears truncated at position {e.pos if hasattr(e, 'pos') else 'unknown'}, attempting smart fix...")
                     
-                    # 尝试添加缺失的 ] 和 }
-                    fixed_attempts = [
-                        json_str + '"}]}}',  # 尝试1: 字符串+数组+对象
-                        json_str + '"]}}',    # 尝试2: 数组+对象
-                        json_str + '}]}}',    # 尝试3: 对象+数组+对象
-                        json_str + '}}',      # 尝试4: 对象
-                        json_str + ']}'       # 尝试5: 数组+对象
-                    ]
+                    # 策略 1: 智能检测并修复
+                    parsed_content = self._smart_fix_truncated_json(json_str, e)
                     
-                    for i, attempt in enumerate(fixed_attempts):
-                        try:
-                            parsed_content = json.loads(attempt)
-                            logger.info(f"✅ JSON fixed and parsed (attempt {i+1})")
-                            break
-                        except:
-                            continue
+                    if parsed_content:
+                        logger.info(f"✅ JSON smart fixed successfully")
                     else:
-                        # 所有尝试都失败
-                        yield {
-                            "type": "error",
-                            "message": "生成内容格式错误（JSON截断），请重试"
-                        }
-                        return
+                        # 策略 2: 暴力尝试各种闭合组合
+                        fixed_attempts = [
+                            json_str + '"}]}}',  # 字符串+数组+对象
+                            json_str + '"}}',    # 字符串+对象
+                            json_str + '"]}}',   # 数组+对象
+                            json_str + '}]}}',   # 对象+数组+对象
+                            json_str + '}}',     # 对象
+                            json_str + ']}}',    # 数组+对象
+                            json_str + ']}'      # 数组+对象
+                        ]
+                        
+                        for i, attempt in enumerate(fixed_attempts):
+                            try:
+                                parsed_content = json.loads(attempt)
+                                logger.info(f"✅ JSON fixed (brute force attempt {i+1})")
+                                break
+                            except:
+                                continue
+                        else:
+                            # 所有尝试都失败 - 返回友好错误
+                            yield {
+                                "type": "error",
+                                "message": "生成内容被意外中断（API连接问题），请稍后重试",
+                                "code": 503
+                            }
+                            return
                 else:
                     yield {
                         "type": "error",
@@ -862,6 +871,72 @@ class SkillOrchestrator:
         # 简单策略：取第一个
         # TODO: 可以实现更复杂的选择策略（基于上下文、用户偏好等）
         return matching_skills[0]
+    
+    def _smart_fix_truncated_json(
+        self,
+        json_str: str,
+        error: json.JSONDecodeError
+    ) -> Optional[Dict[str, Any]]:
+        """
+        智能修复截断的 JSON
+        
+        策略：
+        1. 找到最后一个完整的字段
+        2. 检测当前在什么结构中（对象、数组、字符串）
+        3. 智能添加闭合符号
+        
+        Args:
+            json_str: 截断的 JSON 字符串
+            error: JSON 解析错误
+        
+        Returns:
+            修复后的 dict 或 None
+        """
+        try:
+            # 计算需要的闭合符号
+            open_braces = json_str.count('{')
+            close_braces = json_str.count('}')
+            open_brackets = json_str.count('[')
+            close_brackets = json_str.count(']')
+            
+            # 计算未闭合的引号（字符串）
+            in_string = False
+            escape_next = False
+            for char in json_str:
+                if escape_next:
+                    escape_next = False
+                    continue
+                if char == '\\':
+                    escape_next = True
+                    continue
+                if char == '"':
+                    in_string = not in_string
+            
+            # 构建修复字符串
+            fix = ""
+            
+            # 如果在字符串内被截断
+            if in_string:
+                fix += '"'
+            
+            # 关闭未闭合的数组
+            for _ in range(open_brackets - close_brackets):
+                fix += ']'
+            
+            # 关闭未闭合的对象
+            for _ in range(open_braces - close_braces):
+                fix += '}'
+            
+            # 尝试修复
+            fixed_json = json_str + fix
+            parsed = json.loads(fixed_json)
+            
+            logger.info(f"🔧 Smart fix applied: added {repr(fix)}")
+            return parsed
+        
+        except Exception as e:
+            logger.debug(f"Smart fix failed: {e}")
+            return None
     
     async def _build_context(
         self,
