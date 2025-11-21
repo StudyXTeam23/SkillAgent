@@ -436,15 +436,17 @@ class ConversationSessionManager:
             return
         
         try:
-            # S3 路径：user_kimi/session_xxx.md
+            # S3 路径：user_kimi/session_xxx.md（不包含 artifacts/）
             s3_key = f"{self.user_id}/{self.current_session_file.name}"
             
-            await self.s3_manager.save(
+            # 上传 MD 文件
+            self.s3_manager.save(
                 s3_key,
-                self.current_session_file.read_text(encoding='utf-8')
+                self.current_session_file.read_text(encoding='utf-8'),
+                content_type="text/markdown"
             )
             
-            logger.debug(f"☁️  Uploaded to S3: {s3_key}")
+            logger.debug(f"☁️  Uploaded to S3: s3://{self.s3_manager.bucket_name}/{s3_key}")
         
         except Exception as e:
             logger.error(f"❌ Failed to upload to S3: {e}")

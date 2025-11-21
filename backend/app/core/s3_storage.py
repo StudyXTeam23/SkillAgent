@@ -50,6 +50,45 @@ class S3StorageManager:
         """检查 S3 是否可用"""
         return self.s3_client is not None
     
+    def save(
+        self,
+        s3_key: str,
+        content: str,
+        content_type: str = "text/plain"
+    ) -> Optional[str]:
+        """
+        保存任意内容到 S3（通用方法）
+        
+        Args:
+            s3_key: S3 路径（如：user_kimi/session_xxx.md）
+            content: 文件内容（字符串）
+            content_type: MIME 类型
+        
+        Returns:
+            S3 URI 或 None（失败时）
+        """
+        if not self.is_available():
+            logger.debug("⚠️  S3 not available, skipping upload")
+            return None
+        
+        try:
+            # 上传到 S3
+            self.s3_client.put_object(
+                Bucket=self.bucket_name,
+                Key=s3_key,
+                Body=content.encode('utf-8'),
+                ContentType=content_type
+            )
+            
+            s3_uri = f"s3://{self.bucket_name}/{s3_key}"
+            logger.debug(f"☁️  Uploaded to S3: {s3_uri}")
+            
+            return s3_uri
+        
+        except Exception as e:
+            logger.error(f"❌ Failed to upload to S3: {e}")
+            return None
+    
     def save_artifact(
         self,
         user_id: str,

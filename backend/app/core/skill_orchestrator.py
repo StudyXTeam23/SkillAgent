@@ -126,13 +126,47 @@ class SkillOrchestrator:
                 from .plan_skill_executor import PlanSkillExecutor
                 plan_executor = PlanSkillExecutor(skill_orchestrator=self)
                 
+                # 收集最终结果（用于追加到 MD）
+                final_content = None
+                
                 async for chunk in plan_executor.execute_plan_stream(
                     plan_config=skill.raw_config,
                     user_input=input_params,
                     user_profile=user_profile,
                     session_context=session_context
                 ):
+                    # 转发给前端
                     yield chunk
+                    
+                    # 收集最终结果
+                    if chunk.get("type") == "done":
+                        final_content = chunk.get("content", {})
+                
+                # 追加到 Conversation Session MD 文件
+                if final_content:
+                    try:
+                        session_mgr = self.memory_manager.get_conversation_session_manager(user_id)
+                        await session_mgr.start_or_continue_session(intent_result.raw_text)
+                        
+                        await session_mgr.append_turn({
+                            "user_query": intent_result.raw_text,
+                            "agent_response": {
+                                "skill": skill.id,
+                                "artifact_id": final_content.get("bundle_id", ""),
+                                "content": final_content
+                            },
+                            "response_type": "learning_bundle",
+                            "timestamp": datetime.now(),
+                            "intent": intent_result.model_dump(),
+                            "metadata": {
+                                "thinking_tokens": 0,  # Plan Skill 没有单独的 thinking
+                                "output_tokens": 0,
+                                "model": skill.models.get("primary", "unknown")
+                            }
+                        })
+                        logger.debug(f"📝 Appended Plan Skill turn to conversation session MD")
+                    except Exception as e:
+                        logger.error(f"❌ Failed to append Plan Skill to conversation session: {e}")
                 
                 return
             
