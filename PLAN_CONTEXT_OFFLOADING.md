@@ -631,10 +631,20 @@ else:
 
 ## 📋 TODO List（渐进式）
 
-### Phase 1: 基础设施（不影响现有功能）
-- [ ] 实现 ArtifactStorage 独立类
-- [ ] 添加 Feature Flag 到 learning_plan_skill.yaml（默认 false）
-- [ ] 添加单元测试（ArtifactStorage 独立测试）
+### Phase 1: 基础设施（不影响现有功能）✅ 已完成
+- [x] 实现 ArtifactStorage 独立类
+  - ✅ `backend/app/core/artifact_storage.py` (442 lines)
+  - ✅ save_step_result(), load_step_result(), create_reference()
+  - ✅ save_plan_metadata(), load_plan_metadata()
+  - ✅ cleanup_session(), list_sessions()
+  - ✅ generate_session_id() helper
+- [x] 添加 Feature Flag 到 learning_plan_skill.yaml（默认 false）
+  - ✅ `cost_control.enable_artifact_offloading: false` 
+  - ✅ 默认关闭，不影响现有功能
+- [x] 添加单元测试（ArtifactStorage 独立测试）
+  - ✅ `backend/tests/test_artifact_storage.py` (18 tests)
+  - ✅ 所有测试通过 (100%)
+  - ✅ Token 节省验证（> 90%）
 
 ### Phase 2: 集成（条件启用）
 - [ ] 修改 PlanSkillExecutor 添加条件分支

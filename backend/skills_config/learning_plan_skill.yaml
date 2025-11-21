@@ -204,7 +204,12 @@ aggregation:
 # ============= 成本控制 =============
 cost_control:
   max_total_tokens: 8000  # 整个 plan 的 token 上限
-  context_pruning: true   # 启用上下文卸载
+  
+  # 🎚️ Context Offloading (Phase 4 - 默认关闭，不影响现有功能)
+  enable_artifact_offloading: false  # 🔒 默认关闭！启用后会将 step 结果保存到文件系统
+  
+  # 传统上下文压缩（当 offloading 关闭时使用）
+  context_pruning: true   # 启用上下文裁剪
   
   pruning_strategy:
     method: "extract_key_points"  # 提取关键点
