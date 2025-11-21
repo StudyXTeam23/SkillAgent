@@ -2596,8 +2596,6 @@ function handleCustomInput(inputId, originalIntent) {
 function selectTopic(topic, intent) {
     handleClarificationOption('topic', topic, intent);
 }
-    handleSend();
-}
 
 // 将后端数据转换为 Mind Elixir 格式
 function convertToMindElixirFormat(mindmapData) {
