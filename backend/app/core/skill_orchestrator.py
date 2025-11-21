@@ -204,22 +204,82 @@ class SkillOrchestrator:
             thinking_accumulated = []
             content_accumulated = []
             
-            # 🔥 使用 llm_client（支持 Kimi 或 Gemini）
-            async for chunk in self.llm_client.generate_stream(
-                prompt=prompt,
-                model=skill.models.get("primary", self.llm_client.model),  # 使用 llm_client 的默认模型
-                thinking_budget=skill.thinking_budget or 64,  # ⚡⚡⚡ 极速思考：64 tokens（~5-10秒）
-                buffer_size=1,  # ⚡⚡⚡⚡ 极限优化：每个字符立即发送
-                temperature=getattr(skill, 'temperature', 1.0)  # ⚡⚡⚡ 最大化速度
-            ):
-                # 累积数据
-                if chunk["type"] == "thinking":
-                    thinking_accumulated.append(chunk.get("text", ""))
-                elif chunk["type"] == "content":
-                    content_accumulated.append(chunk.get("text", ""))
+            # 🔄 重试机制：处理 API 连接中断
+            max_retries = 2
+            retry_count = 0
+            api_error_occurred = False
+            
+            while retry_count <= max_retries:
+                try:
+                    if retry_count > 0:
+                        yield {
+                            "type": "status",
+                            "message": f"连接中断，正在重试 ({retry_count}/{max_retries})..."
+                        }
+                        logger.warning(f"🔄 Retrying API call (attempt {retry_count}/{max_retries})")
+                    
+                    # 🔥 使用 llm_client（支持 Kimi 或 Gemini）
+                    async for chunk in self.llm_client.generate_stream(
+                        prompt=prompt,
+                        model=skill.models.get("primary", self.llm_client.model),
+                        thinking_budget=skill.thinking_budget or 64,
+                        buffer_size=1,
+                        temperature=getattr(skill, 'temperature', 1.0)
+                    ):
+                        # 累积数据
+                        if chunk["type"] == "thinking":
+                            thinking_accumulated.append(chunk.get("text", ""))
+                        elif chunk["type"] == "content":
+                            content_accumulated.append(chunk.get("text", ""))
+                        elif chunk["type"] == "error":
+                            # API 返回的错误
+                            api_error_occurred = True
+                            yield chunk
+                            break
+                        
+                        # 转发给前端
+                        yield chunk
+                    
+                    # 成功完成，退出重试循环
+                    if not api_error_occurred:
+                        break
+                    
+                except Exception as e:
+                    error_msg = str(e)
+                    
+                    # 检查是否是可重试的错误
+                    is_retryable = (
+                        "peer closed connection" in error_msg.lower() or
+                        "incomplete chunked read" in error_msg.lower() or
+                        "connection reset" in error_msg.lower() or
+                        "timeout" in error_msg.lower()
+                    )
+                    
+                    if is_retryable and retry_count < max_retries:
+                        retry_count += 1
+                        logger.warning(f"⚠️  Retryable error detected: {error_msg}")
+                        # 清空之前的累积内容
+                        thinking_accumulated = []
+                        content_accumulated = []
+                        continue
+                    else:
+                        # 不可重试或已达最大重试次数
+                        logger.error(f"❌ Non-retryable error or max retries reached: {e}")
+                        yield {
+                            "type": "error",
+                            "message": f"AI服务连接失败，请稍后重试 ({error_msg[:100]})",
+                            "code": 503
+                        }
+                        return
                 
-                # 转发给前端
-                yield chunk
+                # 如果 API 返回了错误，也需要增加重试次数
+                if api_error_occurred:
+                    retry_count += 1
+                    if retry_count > max_retries:
+                        return  # 错误已经通过 chunk 发送给前端了
+                    api_error_occurred = False
+                    thinking_accumulated = []
+                    content_accumulated = []
             
             # Step 6: 解析最终结果
             full_thinking = "".join(thinking_accumulated)

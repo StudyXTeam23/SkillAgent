@@ -192,18 +192,19 @@ class KimiClient:
         # - Flashcard (5张): thinking ~80-120 tokens, content ~800 tokens
         if thinking_budget:
             # 根据 thinking_budget 智能分配 content budget
+            # 增加 buffer 以防止 API 连接中断
             if thinking_budget <= 64:
                 # 极速模式：适合独立的简单任务
-                content_budget = 3500
+                content_budget = 4500  # ⚡ 增加到 4500，防止截断
             elif thinking_budget <= 96:
                 # 平衡模式：适合需要理解上下文的任务 (Plan Skill sub-skills)
-                content_budget = 3500
+                content_budget = 4500
             elif thinking_budget <= 128:
                 # 标准模式：适合中等复杂任务
-                content_budget = 4000
+                content_budget = 5000
             else:
                 # 深度模式：适合复杂任务
-                content_budget = 5000
+                content_budget = 6000
             
             actual_max_tokens = thinking_budget + content_budget
             logger.info(f"⚡ Token Budget: thinking={thinking_budget}, content={content_budget}, total={actual_max_tokens}")
