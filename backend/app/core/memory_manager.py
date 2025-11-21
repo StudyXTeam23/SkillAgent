@@ -3,16 +3,20 @@ Memory Manager - 记忆管理器
 
 负责管理用户的长期学习画像（UserLearningProfile）和短期会话上下文（SessionContext）。
 支持内存和 S3 两种存储方式。
+🆕 Phase 2.5: 支持 Artifact 自动卸载到 S3/本地文件系统。
 """
 import os
 import logging
 import json
-from typing import Optional, Dict, Union
+from typing import Optional, Dict, Union, Any
 from datetime import datetime
+from pathlib import Path
 
-from ..models.memory import UserLearningProfile, SessionContext
+from ..models.memory import UserLearningProfile, SessionContext, ArtifactRecord
 from ..models.intent import MemorySummary
 from ..config import settings
+from .s3_storage import S3StorageManager
+from .artifact_storage import ArtifactStorage
 
 logger = logging.getLogger(__name__)
 
@@ -35,12 +39,24 @@ class MemoryManager:
         self._session_contexts: Dict[str, SessionContext] = {}
         
         # 本地存储配置（用于调试）
-        self.local_storage_dir = local_storage_dir or os.path.join(
+        self.local_storage_dir = Path(local_storage_dir or os.path.join(
             os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
             "memory_storage"
+        ))
+        self.local_storage_dir.mkdir(parents=True, exist_ok=True)
+        
+        # 🆕 集成 S3StorageManager 和 ArtifactStorage
+        self.s3_manager = S3StorageManager() if self.use_s3 else None
+        self.artifact_storage = ArtifactStorage(
+            base_dir="artifacts",
+            s3_manager=self.s3_manager
         )
-        os.makedirs(self.local_storage_dir, exist_ok=True)
-        logger.info(f"✅ MemoryManager initialized (S3: {self.use_s3}, Local: {self.local_storage_dir})")
+        
+        logger.info(
+            f"✅ MemoryManager initialized "
+            f"(S3: {self.use_s3}, Local: {self.local_storage_dir}, "
+            f"Artifact Storage: S3={self.artifact_storage.use_s3})"
+        )
         
         # 🆕 从本地文件加载现有数据（用于开发调试）
         if not self.use_s3:
@@ -479,4 +495,241 @@ class MemoryManager:
             
         except Exception as e:
             logger.warning(f"⚠️  Failed to load from local files: {e}")
+    
+    # ============= Artifact Management (Phase 2.5) =============
+    
+    async def save_artifact(
+        self,
+        session_id: str,
+        artifact: Dict[str, Any],
+        artifact_type: str,
+        topic: str,
+        user_id: str
+    ) -> ArtifactRecord:
+        """
+        保存 artifact（自动卸载到 S3/本地）
+        
+        决策逻辑：
+        - 小内容 (< 500 bytes): inline 存储（直接存储在 ArtifactRecord.content）
+        - 大内容 (>= 500 bytes): 卸载到 S3/文件系统（存储引用）
+        
+        Args:
+            session_id: 会话ID
+            artifact: Artifact 内容
+            artifact_type: 类型（explanation, quiz_set, flashcard_set等）
+            topic: 主题
+            user_id: 用户ID
+        
+        Returns:
+            ArtifactRecord 实例
+        
+        Raises:
+            ValueError: 内容验证失败
+            IOError: 存储失败
+        """
+        artifact_id = self._generate_artifact_id(artifact_type, topic)
+        
+        # 🔧 数据验证
+        if not self._validate_artifact_content(artifact):
+            logger.error(f"❌ Invalid artifact content for {artifact_id}")
+            # 存到隔离区
+            self._quarantine_invalid_artifact(artifact_id, artifact, "validation_failed")
+            raise ValueError(f"Invalid artifact content: {artifact_id}")
+        
+        # 估算大小
+        try:
+            content_json = json.dumps(artifact, ensure_ascii=False)
+            content_size = len(content_json)
+        except Exception as e:
+            logger.error(f"❌ Failed to serialize artifact {artifact_id}: {e}")
+            self._quarantine_invalid_artifact(artifact_id, artifact, "serialization_failed")
+            raise ValueError(f"Cannot serialize artifact: {e}") from e
+        
+        # 🎚️ 阈值判断
+        OFFLOAD_THRESHOLD = 500  # bytes
+        
+        if content_size >= OFFLOAD_THRESHOLD:
+            # 卸载到 S3/文件系统
+            try:
+                reference = self.artifact_storage.save_step_result(
+                    session_id=f"user_{user_id}",  # 使用 user_id 作为 session
+                    step_id=artifact_id,
+                    result=artifact,
+                    metadata={
+                        "artifact_type": artifact_type,
+                        "topic": topic,
+                        "size_bytes": content_size
+                    }
+                )
+                
+                # 创建引用记录
+                record = ArtifactRecord(
+                    artifact_id=artifact_id,
+                    turn_number=self._get_turn_number(session_id),
+                    artifact_type=artifact_type,
+                    topic=topic,
+                    summary=self._generate_summary(artifact, artifact_type),
+                    content_reference=reference,  # S3 URI 或本地路径
+                    content=None  # 不存内容
+                )
+                logger.info(f"💾 Artifact {artifact_id} offloaded: {reference} ({content_size} bytes)")
+            except Exception as e:
+                logger.error(f"❌ Failed to offload artifact {artifact_id}: {e}")
+                # 降级：inline 存储
+                record = ArtifactRecord(
+                    artifact_id=artifact_id,
+                    turn_number=self._get_turn_number(session_id),
+                    artifact_type=artifact_type,
+                    topic=topic,
+                    summary=self._generate_summary(artifact, artifact_type),
+                    content=artifact,  # 降级到 inline
+                    content_reference=None
+                )
+                logger.warning(f"⚠️  Fallback to inline storage for {artifact_id}")
+        else:
+            # 小内容：inline 存储
+            record = ArtifactRecord(
+                artifact_id=artifact_id,
+                turn_number=self._get_turn_number(session_id),
+                artifact_type=artifact_type,
+                topic=topic,
+                summary=self._generate_summary(artifact, artifact_type),
+                content=artifact,
+                content_reference=None
+            )
+            logger.info(f"📄 Artifact {artifact_id} stored inline ({content_size} bytes)")
+        
+        # 添加到 session context
+        session_context = await self.get_session_context(session_id)
+        session_context.artifact_history.append(record)
+        session_context.last_artifact_id = artifact_id
+        await self.update_session_context(session_id, session_context)
+        
+        return record
+    
+    async def get_artifact(
+        self,
+        artifact_id: str
+    ) -> Optional[Dict[str, Any]]:
+        """
+        获取 artifact 内容（按需加载）
+        
+        - 如果是 inline 存储：直接返回 content
+        - 如果是外部存储：从 S3/文件加载
+        
+        Args:
+            artifact_id: Artifact ID
+        
+        Returns:
+            Artifact 内容或 None
+        """
+        # 查找 artifact record
+        record = self._find_artifact_record(artifact_id)
+        if not record:
+            logger.warning(f"⚠️  Artifact {artifact_id} not found")
+            return None
+        
+        # inline 存储
+        if record.content is not None:
+            logger.debug(f"📄 Loading inline artifact {artifact_id}")
+            return record.content
+        
+        # 外部存储（S3/本地）
+        if record.content_reference:
+            try:
+                content = self.artifact_storage.load_artifact_by_reference(record.content_reference)
+                logger.debug(f"💾 Loaded artifact {artifact_id} from {record.storage_type}")
+                return content
+            except Exception as e:
+                logger.error(f"❌ Failed to load artifact {artifact_id}: {e}")
+                return None
+        
+        logger.warning(f"⚠️  Artifact {artifact_id} has no content or reference")
+        return None
+    
+    def _find_artifact_record(self, artifact_id: str) -> Optional[ArtifactRecord]:
+        """在所有 session contexts 中查找 artifact record"""
+        for session_context in self._session_contexts.values():
+            for artifact in session_context.artifact_history:
+                if artifact.artifact_id == artifact_id:
+                    return artifact
+        return None
+    
+    def _validate_artifact_content(self, content: Dict[str, Any]) -> bool:
+        """
+        验证 artifact 内容
+        
+        规则：
+        1. 必须是字典
+        2. 必须可 JSON 序列化
+        3. 大小 < 10MB
+        """
+        if not isinstance(content, dict):
+            return False
+        
+        try:
+            content_json = json.dumps(content, ensure_ascii=False)
+            MAX_SIZE = 10 * 1024 * 1024  # 10MB
+            return len(content_json) <= MAX_SIZE
+        except:
+            return False
+    
+    def _quarantine_invalid_artifact(
+        self,
+        artifact_id: str,
+        content: Any,
+        reason: str
+    ):
+        """
+        将无效 artifact 存到隔离区（用于后续分析）
+        """
+        quarantine_dir = Path("quarantine")
+        quarantine_dir.mkdir(exist_ok=True)
+        
+        quarantine_file = quarantine_dir / f"{artifact_id}_{reason}.json"
+        try:
+            with open(quarantine_file, "w", encoding="utf-8") as f:
+                json.dump({
+                    "artifact_id": artifact_id,
+                    "reason": reason,
+                    "timestamp": datetime.now().isoformat(),
+                    "content": str(content)  # 强制转字符串
+                }, f, ensure_ascii=False, indent=2)
+            logger.info(f"🔒 Quarantined invalid artifact: {quarantine_file}")
+        except Exception as e:
+            logger.error(f"❌ Failed to quarantine artifact: {e}")
+    
+    def _generate_artifact_id(self, artifact_type: str, topic: str) -> str:
+        """生成唯一的 artifact ID"""
+        import uuid
+        short_id = uuid.uuid4().hex[:8]
+        timestamp = int(datetime.now().timestamp())
+        # artifact_explanation_physics_12345678_1699999999
+        safe_topic = topic.replace(" ", "_").replace("/", "_")[:20]
+        return f"artifact_{artifact_type}_{safe_topic}_{short_id}_{timestamp}"
+    
+    def _get_turn_number(self, session_id: str) -> int:
+        """获取当前会话的 turn number"""
+        session_context = self._session_contexts.get(session_id)
+        if session_context:
+            return len(session_context.artifact_history) + 1
+        return 1
+    
+    def _generate_summary(self, artifact: Dict[str, Any], artifact_type: str) -> str:
+        """生成 artifact 摘要"""
+        # 根据不同类型生成摘要
+        if artifact_type == "explanation":
+            concept = artifact.get("concept", "Unknown")
+            return f"Explanation: {concept}"
+        elif artifact_type == "quiz_set":
+            num_questions = len(artifact.get("questions", []))
+            return f"Quiz: {num_questions} questions"
+        elif artifact_type == "flashcard_set":
+            num_cards = len(artifact.get("cards", []))
+            return f"Flashcards: {num_cards} cards"
+        elif artifact_type == "notes":
+            title = artifact.get("structured_notes", {}).get("title", "Unknown")
+            return f"Notes: {title}"
+        else:
+            return f"{artifact_type}"
 

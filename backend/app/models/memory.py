@@ -65,7 +65,39 @@ class ArtifactRecord(BaseModel):
     artifact_type: str = Field(..., description="产物类型: quiz_set, explanation, flashcard_set等")
     topic: Optional[str] = Field(None, description="主题")
     summary: str = Field(..., description="内容摘要，用于显示和搜索")
-    content: Dict[str, Any] = Field(..., description="完整内容")
+    
+    # 🆕 外部存储引用（S3 URI 或本地路径）
+    content_reference: Optional[str] = Field(
+        None,
+        description="外部存储引用（S3 URI 如 s3://... 或本地路径如 user_xxx/artifact_001.json）"
+    )
+    
+    # 🔧 向后兼容：小内容直接存储（< 500 bytes）
+    content: Optional[Dict[str, Any]] = Field(
+        None,
+        description="完整内容（仅用于小内容 < 500 bytes 或向后兼容）"
+    )
+    
+    @property
+    def has_external_storage(self) -> bool:
+        """是否使用外部存储"""
+        return self.content_reference is not None
+    
+    @property
+    def storage_type(self) -> str:
+        """存储类型：s3, local, inline"""
+        if not self.content_reference:
+            return "inline"
+        if self.content_reference.startswith("s3://"):
+            return "s3"
+        return "local"
+    
+    def get_content_size_estimate(self) -> int:
+        """估算内容大小（bytes）"""
+        if self.content:
+            import json
+            return len(json.dumps(self.content, ensure_ascii=False))
+        return 0
 
 
 class SessionContext(BaseModel):

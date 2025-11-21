@@ -41,16 +41,26 @@ class ArtifactStorage:
     - Memory System（不同存储目录）
     """
     
-    def __init__(self, base_dir: str = "artifacts"):
+    def __init__(
+        self, 
+        base_dir: str = "artifacts",
+        s3_manager: Optional[Any] = None
+    ):
         """
         初始化 Artifact Storage
         
         Args:
             base_dir: artifact 存储根目录（相对于项目根目录）
+            s3_manager: S3StorageManager 实例（可选）
         """
         self.base_dir = Path(base_dir)
         self.base_dir.mkdir(parents=True, exist_ok=True)
-        logger.info(f"✅ ArtifactStorage initialized: {self.base_dir.absolute()}")
+        
+        # 🆕 S3 支持
+        self.s3_manager = s3_manager
+        self.use_s3 = s3_manager is not None and s3_manager.is_available()
+        
+        logger.info(f"✅ ArtifactStorage initialized: local={self.base_dir.absolute()}, S3={self.use_s3}")
     
     def save_step_result(
         self,
@@ -60,20 +70,45 @@ class ArtifactStorage:
         metadata: Optional[Dict[str, Any]] = None
     ) -> str:
         """
-        保存 step 结果到文件
+        保存 step 结果（优先 S3，降级到本地）
         
         Args:
-            session_id: Plan 执行的唯一 session ID
+            session_id: Plan 执行的唯一 session ID 或 user session ID
             step_id: Step 标识符（如 "explain", "notes", "quiz"）
             result: Step 执行结果（完整内容）
             metadata: 可选的元数据（如 skill_id, tokens_used）
         
         Returns:
-            文件相对路径（相对于 base_dir）
+            引用字符串：
+            - S3: "s3://bucket/artifacts/user_xxx/step_001.json"
+            - Local: "user_xxx/step_001.json"
             
         Raises:
-            IOError: 文件写入失败时
+            IOError: 所有存储方式都失败时
         """
+        # 🎯 优先尝试 S3
+        if self.use_s3:
+            try:
+                # 提取 user_id
+                user_id = self._extract_user_id(session_id)
+                
+                # 上传到 S3
+                s3_uri = self.s3_manager.save_artifact(
+                    user_id=user_id,
+                    artifact_id=f"step_{step_id}",
+                    content=result,
+                    metadata=metadata
+                )
+                
+                if s3_uri:
+                    logger.debug(f"💾 Saved to S3: {s3_uri}")
+                    return s3_uri
+                else:
+                    logger.warning("⚠️  S3 upload returned None, falling back to local storage")
+            except Exception as e:
+                logger.error(f"❌ S3 save error: {e}, falling back to local")
+        
+        # 🥈 降级到本地文件系统
         try:
             # 创建 session 目录
             session_dir = self.base_dir / session_id
@@ -96,22 +131,37 @@ class ArtifactStorage:
                 json.dump(artifact, f, ensure_ascii=False, indent=2)
             
             # 返回相对路径
-            relative_path = file_path.relative_to(self.base_dir)
+            relative_path = str(file_path.relative_to(self.base_dir))
             
             # 统计信息
             file_size = file_path.stat().st_size
             result_size = len(json.dumps(result, ensure_ascii=False))
             
             logger.info(
-                f"💾 Saved artifact: {relative_path} "
+                f"📂 Saved to local: {relative_path} "
                 f"(result: {result_size} bytes, file: {file_size} bytes)"
             )
             
-            return str(relative_path)
+            return relative_path
             
         except Exception as e:
-            logger.error(f"❌ Failed to save artifact: {e}")
-            raise
+            logger.error(f"❌ Failed to save locally: {e}")
+            raise IOError(f"Failed to save artifact: {e}") from e
+    
+    def _extract_user_id(self, session_id: str) -> str:
+        """
+        从 session_id 提取 user_id
+        
+        支持的格式：
+        - user_{user_id}_{timestamp}: 提取 user_id
+        - plan_{timestamp}_{uuid}: 返回 "anonymous"
+        """
+        if session_id.startswith("user_"):
+            parts = session_id.split("_")
+            # user_alice_123456 -> alice
+            if len(parts) >= 2:
+                return "_".join(parts[1:-1]) if len(parts) > 2 else parts[1]
+        return "anonymous"
     
     def load_step_result(
         self,
@@ -152,6 +202,51 @@ class ArtifactStorage:
             
         except json.JSONDecodeError as e:
             logger.error(f"❌ Failed to parse artifact JSON: {e}")
+            raise
+    
+    def load_artifact_by_reference(
+        self,
+        reference: str
+    ) -> Dict[str, Any]:
+        """
+        按需加载 artifact（支持 S3 URI 或本地路径）
+        
+        Args:
+            reference: "s3://..." 或 "user_xxx/step_001.json"
+        
+        Returns:
+            Artifact 内容
+            
+        Raises:
+            FileNotFoundError: artifact 不存在
+            RuntimeError: S3 不可用但引用是 S3 URI
+        """
+        # S3 引用
+        if reference.startswith("s3://"):
+            if not self.use_s3:
+                raise RuntimeError(f"S3 not available, cannot load: {reference}")
+            
+            content = self.s3_manager.load_artifact(reference)
+            if content is None:
+                raise FileNotFoundError(f"Artifact not found in S3: {reference}")
+            return content
+        
+        # 本地文件引用
+        file_path = self.base_dir / reference
+        if not file_path.exists():
+            raise FileNotFoundError(f"Artifact not found locally: {file_path}")
+        
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                artifact = json.load(f)
+            
+            logger.debug(f"🔍 Loaded artifact from local: {reference}")
+            return artifact.get("result", {})
+        except json.JSONDecodeError as e:
+            logger.error(f"❌ Failed to parse artifact JSON from {file_path}: {e}")
+            raise
+        except Exception as e:
+            logger.error(f"❌ Failed to load from {file_path}: {e}")
             raise
     
     def create_reference(
