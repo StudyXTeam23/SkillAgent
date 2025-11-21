@@ -4,9 +4,17 @@
 
 ---
 
-## 🔥 最近更新 (2025-11-20)
+## 🔥 最近更新 (2025-11-21)
 
-### ⚡ 性能优化 (重大更新) - 真正的 Token 控制
+### 🎯 多用户系统 & 用户画像架构 (NEW)
+- ✅ **多用户认证**：支持 Kimi & Alex 两个示例用户
+- ✅ **数据完全隔离**：每个用户独立的 Session + S3 路径
+- ✅ **S3 存储策略调整**：所有 artifacts 存 S3（而非仅大文件）
+  - **设计理念**：构建完整用户画像，支持智能意图识别
+  - **应用价值**：个性化学习内容、学习模式分析、知识图谱构建
+- ✅ **前端重构**：CSS/JS 分离，demo.html 减少 94% 体积（4090→233行）
+
+### ⚡ 性能优化 (2025-11-20) - 真正的 Token 控制
 - ✅ **实现强制 Token 限制** (不只是 Prompt 建议)
   - **max_tokens 动态计算**: 根据 thinking_budget 自动分配 (64+3500=3564)
   - **System Message 约束**: 强制系统级指令，比 prompt 建议更有效
@@ -1670,46 +1678,112 @@ if skill.skill_type == "plan":
 
 ## 5. 数据存储
 
-### 5.1 当前实现
+### 5.1 多用户存储架构 ✨ NEW
 
-**存储方式**: 内存 + 本地JSON文件
+**设计理念**：构建完整的用户画像，支持个性化学习
 
-**文件位置**:
+**核心价值**：
+- 🎯 **用户画像构建**：所有学习记录都存储，形成用户知识图谱
+- 🧠 **智能意图识别**：基于历史上下文，更准确理解用户需求
+- 📊 **个性化推荐**：根据学习模式，生成适配内容
+- 🔒 **数据隔离**：每个用户独立存储，保护隐私
+
+### 5.2 S3 云存储策略
+
+**存储策略** (已优化)：
+```python
+# 旧策略（已废弃）：
+# - 小文件 (< 500 bytes) → inline 存储
+# - 大文件 (≥ 500 bytes) → S3 存储
+
+# 新策略（当前）：
+# - 所有 artifacts → S3 存储 ✅
+# - 目的：构建完整用户画像
+```
+
+**为什么全部存 S3？**
+1. **用户画像完整性**：简单问答也包含学习偏好
+2. **上下文连续性**：历史记录用于意图识别
+3. **个性化基础**：分析学习模式需要全量数据
+4. **扩展性**：支持未来的推荐系统和学习分析
+
+**S3 路径结构**：
+```
+s3://skill-agent-demo/
+└── artifacts/
+    ├── user_kimi/
+    │   ├── artifact_explanation_量子纠缠_xxx.json
+    │   ├── artifact_flashcard_set_量子物理_yyy.json
+    │   └── artifact_quiz_set_相对论_zzz.json
+    └── user_alex/
+        ├── artifact_explanation_光合作用_aaa.json
+        └── artifact_notes_细胞结构_bbb.json
+```
+
+**用户画像数据流**：
+```
+用户请求 → 意图识别 (基于历史) → 生成内容 → 存储 S3
+    ↑                                              ↓
+    └──────────── 更新用户画像 ←──────────────────┘
+```
+
+### 5.3 本地存储（会话管理）
+
+**文件位置**：
 ```
 backend/memory_storage/
-├── profile_demo-user.json      # 用户画像
-├── session_demo-session.json   # 会话上下文
-└── README.md                    # 使用说明
+├── user_kimi_session_xxx.json    # Kimi 会话上下文
+├── user_alex_session_yyy.json    # Alex 会话上下文
+└── thinking_overview_debug.json  # Debug 数据
 ```
 
-**文件格式**:
+**会话文件格式**：
 ```json
 {
-  "session_id": "demo-session",
-  "current_topic": "二战历史的",
-  "last_artifact_content": {
-    "questions": [...]
-  },
-  "_last_updated": "2025-11-18T16:30:00"
+  "session_id": "user_kimi_session_20251121_110858",
+  "user_id": "user_kimi",
+  "current_topic": "量子纠缠",
+  "artifacts": [
+    {
+      "artifact_id": "artifact_explanation_量子纠缠_xxx",
+      "artifact_type": "explanation",
+      "topic": "量子纠缠",
+      "storage_type": "s3",
+      "content_reference": "s3://skill-agent-demo/artifacts/user_kimi/..."
+    }
+  ],
+  "last_updated": "2025-11-21T11:08:58"
 }
 ```
 
-### 5.2 查看方法
+### 5.4 数据隔离验证
 
+**测试命令**：
 ```bash
-# 实时监控
-watch -n 1 "cat backend/memory_storage/session_demo-session.json | python3 -m json.tool"
+# 运行多用户数据隔离测试
+cd backend
+python3 scripts/test_multi_user_scenario.py
 
-# 查看特定内容
-cat backend/memory_storage/session_demo-session.json | jq '.last_artifact_content.questions[0]'
+# 检查本地会话文件
+ls -la backend/memory_storage/user_*.json
+
+# 查看 S3 存储（AWS CLI）
+aws s3 ls s3://skill-agent-demo/artifacts/user_kimi/ --recursive
+aws s3 ls s3://skill-agent-demo/artifacts/user_alex/ --recursive
 ```
 
-### 5.3 V2 计划
+### 5.5 用户画像应用场景
 
-- ✅ SQLite 持久化
-- ✅ S3 云存储支持
-- ✅ 索引和查询优化
-- ✅ 自动备份
+**当前实现**：
+- ✅ 基于会话的上下文管理
+- ✅ 用户独立的 S3 存储路径
+- ✅ Artifact 引用而非内容存储
+
+**未来扩展**：
+- 📊 学习模式分析（主题偏好、难度适配）
+- 🎯 智能推荐（基于历史生成相关内容）
+- 🧠 知识图谱（构建用户知识结构）
+- 📈 学习进度跟踪（掌握度评估）
 
 ---
 

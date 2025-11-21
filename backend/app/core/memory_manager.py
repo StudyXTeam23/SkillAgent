@@ -545,10 +545,12 @@ class MemoryManager:
             self._quarantine_invalid_artifact(artifact_id, artifact, "serialization_failed")
             raise ValueError(f"Cannot serialize artifact: {e}") from e
         
-        # 🎚️ 阈值判断
-        OFFLOAD_THRESHOLD = 500  # bytes
+        # 🎚️ 存储策略判断
+        # 设计理念：所有 artifacts 都存储到 S3，构建完整的用户画像
+        # 用户画像对于意图识别、个性化学习内容生成至关重要
+        OFFLOAD_THRESHOLD = 0  # bytes - 所有内容都上传 S3
         
-        if content_size >= OFFLOAD_THRESHOLD:
+        if content_size >= OFFLOAD_THRESHOLD:  # 现在始终为 True
             # 卸载到 S3/文件系统
             try:
                 reference = self.artifact_storage.save_step_result(
