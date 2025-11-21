@@ -20,7 +20,7 @@ class S3StorageManager:
         """初始化 S3 客户端"""
         self.s3_client = None
         self.bucket = None
-        self.artifact_folder = "artifacts"
+        self.artifact_folder = ""  # 🔥 移除 artifacts/ 前缀，直接使用 user_id/
         
         if settings.USE_S3_STORAGE:
             try:
@@ -36,7 +36,7 @@ class S3StorageManager:
                 self.bucket = settings.AWS_S3_BUCKET
                 self.ClientError = ClientError
                 
-                logger.info(f"✅ S3 Storage initialized: {self.bucket}/{self.artifact_folder}")
+                logger.info(f"✅ S3 Storage initialized: {self.bucket}/ (user_id/artifact_id.json)")
             except ImportError:
                 logger.warning("⚠️  boto3 not installed, S3 storage disabled")
                 self.s3_client = None
@@ -118,8 +118,8 @@ class S3StorageManager:
                 logger.error(f"❌ Invalid content for artifact {artifact_id}")
                 return None
             
-            # 构建 S3 key
-            s3_key = f"{self.artifact_folder}/{user_id}/{artifact_id}.json"
+            # 构建 S3 key（直接使用 user_id，不包含 artifacts/ 前缀）
+            s3_key = f"{user_id}/{artifact_id}.json"
             
             # 准备数据
             artifact_data = {

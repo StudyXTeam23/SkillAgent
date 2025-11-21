@@ -80,7 +80,7 @@ class ArtifactStorage:
         
         Returns:
             引用字符串：
-            - S3: "s3://bucket/artifacts/user_xxx/step_001.json"
+            - S3: "s3://bucket/user_xxx/step_001.json"
             - Local: "user_xxx/step_001.json"
             
         Raises:
