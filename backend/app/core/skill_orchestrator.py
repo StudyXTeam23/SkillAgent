@@ -1642,20 +1642,10 @@ Please respond with valid JSON according to the output schema defined above.
                 
                 logger.info(f"✅ Artifact saved: {artifact_record.artifact_id} (Storage: {artifact_record.storage_type})")
                 
-                # 更新 session context 的 artifact_history
-                if not session_context.artifact_history:
-                    session_context.artifact_history = []
-                
-                session_context.artifact_history.append(artifact_record.artifact_id)
-                
-                # 保持最近20个 artifacts
-                if len(session_context.artifact_history) > 20:
-                    session_context.artifact_history = session_context.artifact_history[-20:]
-                
-                # 更新 last_artifact_id
-                session_context.last_artifact_id = artifact_record.artifact_id
-                
-                logger.info(f"📝 Artifact history updated: {len(session_context.artifact_history)} artifacts")
+                # 注意：artifact_history 已经在 memory_manager.save_artifact() 中更新了
+                # 这里不需要重复添加，只需要记录日志
+                session_context_updated = await self.memory_manager.get_session_context(session_id)
+                logger.info(f"📝 Artifact history updated: {len(session_context_updated.artifact_history)} artifacts")
                 
             except Exception as e:
                 logger.error(f"❌ Failed to save artifact: {e}")

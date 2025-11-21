@@ -379,12 +379,28 @@ class SkillRegistry:
         """
         params = {}
         
-        # 1. 提取数量参数 - 使用简单直接的正则匹配
-        # 通用数量模式
-        quantity_match = re.search(r'(\d+)\s*[道个张份]', message)
-        if quantity_match:
-            quantity_value = int(quantity_match.group(1))
-            
+        # 1. 提取数量参数 - 支持阿拉伯数字和中文数字
+        # 中文数字映射
+        chinese_numbers = {
+            '一': 1, '二': 2, '三': 3, '四': 4, '五': 5,
+            '六': 6, '七': 7, '八': 8, '九': 9, '十': 10,
+            '两': 2
+        }
+        
+        quantity_value = None
+        
+        # 优先匹配阿拉伯数字
+        arabic_match = re.search(r'(\d+)\s*[道个张份题卡]', message)
+        if arabic_match:
+            quantity_value = int(arabic_match.group(1))
+        else:
+            # 匹配中文数字
+            chinese_match = re.search(r'([一二三四五六七八九十两])\s*[道个张份题卡]', message)
+            if chinese_match:
+                chinese_char = chinese_match.group(1)
+                quantity_value = chinese_numbers.get(chinese_char)
+        
+        if quantity_value:
             # 根据 skill_id 设置正确的参数名
             if skill_id == 'quiz_skill':
                 params['num_questions'] = quantity_value
@@ -424,47 +440,61 @@ class SkillRegistry:
     def _extract_topic(self, message: str, metadata: Dict[str, Any]) -> Optional[str]:
         """从消息中提取主题 - 使用简单直接的方法"""
         
-        # 简化的主题提取模式
+        # 优化的主题提取模式（按优先级排序）
         topic_patterns = [
-            r'(\d+)[道个张份](.+?)[的]?[题笔闪导卡图记]',  # "5道二战历史的题"
-            r'关于(.+?)[的]?[题笔闪导卡图记]',          # "关于光合作用的题"
-            r'什么是(.+)',                             # "什么是光合作用"
-            r'解释(?:一?下?)?(.+)',                    # "解释光合作用"
-            r'讲解(?:一?下?)?(.+)',                    # "讲解光合作用"
-            r'理解(?:一?下?)?(.+)',                    # "理解光合作用"
-            r'了解(?:一?下?)?(.+)',                    # "了解光合作用"
-            r'学习(?:一?下?)?(.+)',                    # "学习光合作用"
-            r'(.+?)[的]?[题笔闪导卡图记]',             # "二战历史的题"
+            # 高优先级：明确的主题词
+            r'什么是(.+?)(?:[，。！？]|$)',              # "什么是光合作用"
+            r'解释(?:一?下?)?(.+?)(?:[，。！？]|$)',     # "解释光合作用"
+            r'讲解(?:一?下?)?(.+?)(?:[，。！？]|$)',     # "讲解光合作用"
+            r'理解(?:一?下?)?(.+?)(?:[，。！？]|$)',     # "理解光合作用"
+            r'了解(?:一?下?)?(.+?)(?:[，。！？]|$)',     # "了解光合作用"
+            r'学习(?:一?下?)?(.+?)(?:[，。！？]|$)',     # "学习光合作用"
+            r'关于(.+?)的',                             # "关于光合作用的"
+            
+            # 中优先级：带数量词的模式
+            r'(?:\d+|[一二三四五六七八九十两])[道个张份题卡](.+?)(?:的)?[题笔闪导卡图记]',  # "3道光合作用的题"
+            
+            # 低优先级：宽松匹配
+            r'(.+?)[的]?[题笔闪导卡图记]',             # "光合作用的题"
         ]
         
         for pattern in topic_patterns:
             match = re.search(pattern, message)
             if match:
-                # 提取最后一个捕获组（通常是主题）
-                topic = match.group(len(match.groups())).strip()
+                # 提取第一个捕获组
+                topic = match.group(1).strip()
                 # 清理主题
                 topic = self._clean_topic(topic)
-                if len(topic) >= 2:
-                    logger.debug(f"📝 Extracted topic: {topic}")
+                
+                # 验证提取的主题有效性
+                # 排除一些明显无效的结果
+                invalid_topics = ['我需要', '帮我', '给我', '我要', '再来', '再给', '再出', '出']
+                if topic and len(topic) >= 2 and topic not in invalid_topics:
+                    logger.debug(f"📝 Extracted topic: {topic} (pattern: {pattern})")
                     return topic
         
         return None
     
     def _clean_topic(self, topic: str) -> str:
         """清理主题文本，移除填充词"""
-        # 移除常见填充词
+        # 移除常见填充词和上下文引用词
         filler_words = [
             "的", "了", "吗", "呢", "啊", "吧",
-            "给我", "帮我", "我要", "生成", "创建",
+            "给我", "帮我", "我要", "我需要", "生成", "创建",
             "出", "做", "写",
             "关于", "有关",
+            "根据", "刚刚", "刚才", "上面", "这个", "那个",
             " 思维", " 导图", " 笔记", " 题目", " 闪卡", " 卡片"  # 技能相关的词
         ]
         for filler in filler_words:
             topic = topic.replace(filler, " ")
         
-        # 移除数量词
-        topic = re.sub(r'\d+\s*[个道张份]', '', topic)
+        # 移除数量词（阿拉伯数字 + 中文数字）
+        topic = re.sub(r'\d+\s*[个道张份题卡]', '', topic)
+        topic = re.sub(r'[一二三四五六七八九十两]\s*[个道张份题卡]', '', topic)
+        
+        # 移除多余空格
+        topic = ' '.join(topic.split())
         
         return topic.strip()
     
