@@ -553,8 +553,11 @@ class MemoryManager:
         if content_size >= OFFLOAD_THRESHOLD:  # 现在始终为 True
             # 卸载到 S3/文件系统
             try:
+                # 🔥 修复：user_id 已经包含 "user_" 前缀，不需要再加
+                storage_session_id = user_id if user_id.startswith("user_") else f"user_{user_id}"
+                
                 reference = self.artifact_storage.save_step_result(
-                    session_id=f"user_{user_id}",  # 使用 user_id 作为 session
+                    session_id=storage_session_id,
                     step_id=artifact_id,
                     result=artifact,
                     metadata={

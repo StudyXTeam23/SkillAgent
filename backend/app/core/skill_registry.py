@@ -554,7 +554,8 @@ class SkillRegistry:
             'quiz': ['题', '题目', '练习', '测试', 'quiz', 'test', 'question'],
             'flashcard': ['闪卡', '卡片', '记忆卡', 'flashcard', 'card'],
             'notes': ['笔记', '总结', '归纳', 'notes', 'summary'],
-            'mindmap': ['思维导图', '导图', '知识图', 'mindmap', 'mind map', 'concept map']
+            'mindmap': ['思维导图', '导图', '知识图', 'mindmap', 'mind map', 'concept map'],
+            'learning_bundle': ['学习包', '学习资料', '学习材料', '完整', '学习套装', '学习计划', 'learning bundle', 'study package']
         }
         
         # 检测消息中包含哪些技能的关键词
@@ -563,9 +564,31 @@ class SkillRegistry:
             if any(kw in message for kw in keywords):
                 matched_skills.append(skill_name)
         
-        # 如果检测到 2 个或以上的技能关键词，判定为混合意图
-        if len(matched_skills) >= 2:
-            logger.info(f"🔀 Mixed intent detected: {matched_skills}")
+        # 🔥 特殊情况：如果明确提到 learning_bundle 关键词，直接返回 learning_plan_skill
+        if 'learning_bundle' in matched_skills:
+            logger.info(f"📦 Detected explicit learning_bundle keywords")
+            
+            # 提取参数
+            params = {}
+            topic = self._extract_topic(message, {})
+            if not topic and current_topic:
+                topic = current_topic
+            if topic:
+                params['topic'] = topic
+            
+            # 返回 learning_plan_skill 匹配
+            return SkillMatch(
+                skill_id='learning_plan_skill',
+                confidence=0.95,  # 高置信度
+                parameters=params,
+                matched_keywords=['learning_bundle']
+            )
+        
+        # 如果检测到 2 个或以上的技能关键词（不包括 learning_bundle），判定为混合意图
+        # 过滤掉 learning_bundle，因为它已经在上面处理了
+        matched_skills_filtered = [s for s in matched_skills if s != 'learning_bundle']
+        if len(matched_skills_filtered) >= 2:
+            logger.info(f"🔀 Mixed intent detected: {matched_skills_filtered}")
             
             # 提取参数
             params = {}
@@ -578,7 +601,7 @@ class SkillRegistry:
                 'notes': 'notes',
                 'mindmap': 'mindmap'
             }
-            params['required_steps'] = [step_mapping[skill] for skill in matched_skills if skill in step_mapping]
+            params['required_steps'] = [step_mapping[skill] for skill in matched_skills_filtered if skill in step_mapping]
             logger.info(f"📋 Required steps: {params['required_steps']}")
             
             # 提取主题 - 使用更智能的方法
@@ -614,9 +637,9 @@ class SkillRegistry:
             if quantity_match:
                 quantity_value = int(quantity_match.group(1))
                 # 根据消息中的关键词判断数量属于哪个技能
-                if 'quiz' in matched_skills:
+                if 'quiz' in matched_skills_filtered:
                     params['quiz_quantity'] = quantity_value
-                if 'flashcard' in matched_skills:
+                if 'flashcard' in matched_skills_filtered:
                     params['flashcard_quantity'] = quantity_value
             
             # 返回 learning_plan_skill 匹配
@@ -624,7 +647,7 @@ class SkillRegistry:
                 skill_id='learning_plan_skill',
                 confidence=0.90,  # 高置信度
                 parameters=params,
-                matched_keywords=matched_skills
+                matched_keywords=matched_skills_filtered
             )
         
         return None

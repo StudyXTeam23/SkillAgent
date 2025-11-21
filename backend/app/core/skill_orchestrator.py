@@ -507,14 +507,14 @@ class SkillOrchestrator:
                     }
                 }
             
-            # 🆕 置信度过低或多主题冲突：提供主动澄清
-            if not topic_is_valid and len(artifact_history) > 0:
+            # 🆕 多主题澄清：即使有 current_topic，如果有多个历史主题也应询问
+            if len(artifact_history) > 0 and not topic_is_valid:
                 # 提取最近的主题列表
                 recent_topics = await self._extract_recent_topics(session_id)
                 
                 # 如果有多个主题，提供澄清选项
                 if len(recent_topics) >= 2:
-                    logger.info(f"❓ Multiple topics detected, requesting clarification")
+                    logger.info(f"❓ Multiple topics detected ({len(recent_topics)} topics), requesting clarification")
                     
                     return {
                         "content_type": "clarification_needed",
@@ -537,6 +537,41 @@ class SkillOrchestrator:
                             "original_message": intent_result.raw_text
                         }
                     }
+            
+            # 🆕 如果消息中没有明确主题，但有 current_topic，检查是否应该澄清
+            # 特殊情况：用户只说"生成X张闪卡"，有多个历史主题
+            if topic_is_valid and len(artifact_history) > 0:
+                recent_topics = await self._extract_recent_topics(session_id)
+                # 如果有3个或更多不同主题，考虑澄清
+                if len(recent_topics) >= 3:
+                    # 检查消息是否非常模糊（没有明确提到主题）
+                    message_lower = intent_result.raw_text.lower()
+                    has_explicit_topic = any(topic in message_lower for topic in recent_topics)
+                    
+                    if not has_explicit_topic:
+                        logger.info(f"❓ Ambiguous request with {len(recent_topics)} topics, requesting clarification")
+                        
+                        return {
+                            "content_type": "clarification_needed",
+                            "intent": intent_result.intent,
+                            "response_content": {
+                                "question": f"您想基于哪个主题生成？（当前默认：{intent_result.topic}）",
+                                "reason": "topic_ambiguous",
+                                "options": [
+                                    {
+                                        "type": "topic",
+                                        "label": topic,
+                                        "value": topic,
+                                        "icon": "📚"
+                                    }
+                                    for topic in recent_topics[:5]
+                                ],
+                                "allow_custom_input": True,
+                                "custom_input_placeholder": "或者输入新的主题...",
+                                "original_intent": intent_result.intent,
+                                "original_message": intent_result.raw_text
+                            }
+                        }
             
             # 多主题澄清：只有当topic无效且有多个主题时才触发
             if not topic_is_valid and len(artifact_history) > 1:
@@ -963,25 +998,26 @@ class SkillOrchestrator:
                         params["source_content"] = str(source_content)
                     logger.info(f"📎 Prepared source_content for {skill.id}")
         
-        # 🆕 V1.6: 提取 quantity 参数（如果用户没指定，使用默认值）
+        # 🆕 V1.7: 提取 quantity 参数（优先使用具体参数名）
         if hasattr(intent_result, 'parameters') and intent_result.parameters:
-            quantity = intent_result.parameters.get('quantity', None)
+            quantity = None
             
-            # 如果没有指定数量，使用默认值
-            if quantity is None:
-                if skill.id == 'quiz_skill':
-                    quantity = 5  # Quiz 默认 5 道题
-                elif skill.id == 'flashcard_skill':
-                    quantity = 5  # Flashcard 默认 5 张卡
-            
-            # 根据不同的 skill 设置不同的参数名
+            # 根据不同的 skill 优先查找对应的参数
             if skill.id == 'quiz_skill':
+                # 优先查找 num_questions，然后是 quantity
+                quantity = intent_result.parameters.get('num_questions') or intent_result.parameters.get('quantity')
+                if quantity is None:
+                    quantity = 5  # 默认 5 道题
                 params['num_questions'] = quantity
+                logger.info(f"📊 Quiz quantity: {quantity}")
+                
             elif skill.id == 'flashcard_skill':
+                # 优先查找 num_cards，然后是 quantity
+                quantity = intent_result.parameters.get('num_cards') or intent_result.parameters.get('quantity')
+                if quantity is None:
+                    quantity = 5  # 默认 5 张卡
                 params['num_cards'] = quantity
-            
-            if quantity is not None:
-                logger.info(f"📊 Extracted quantity: {quantity} for {skill.id}")
+                logger.info(f"📊 Flashcard quantity: {quantity}")
         
         # 🔥 合并所有 intent parameters (除了已经被处理的)
         # 这确保 Plan Skill 可以接收 flashcard_quantity, quiz_quantity 等自定义参数
